@@ -1,4 +1,7 @@
 import Room
+from Command import Command
+#from Colorama import Fore
+
 import threading
 import time
 
@@ -24,6 +27,12 @@ class Player:
         self.output_stack = []
         self.io_stack_lock = threading.Lock()
 
+        # Initialise player commands
+        self.commands = {
+            "help": Command("help", Player.help, "Get a list of all usable commands"),
+            "go": Command("go", Player.go, "(north, east, south, west) Go to another room")
+        }
+
         # Spawn in the given room
         self.room = room
         self.room.on_enter(self)
@@ -47,11 +56,16 @@ class Player:
     Returns nothing
     """
     def update(self):
-        # Flush inputs
-        for input_string in self.input_stack:
-            self.process_input(input_string)
+        self.io_stack_lock.acquire()
 
-        self.input_stack = []
+        try:
+            # Flush inputs
+            for input_string in self.input_stack:
+                self.process_input(input_string)
+
+            self.input_stack = []
+        finally:
+            self.io_stack_lock.release()
 
     """Outputs a string to the player
 
@@ -60,13 +74,13 @@ class Player:
     """
     def output(self, string: str):
         # Lock the IO stack
-        self.io_stack_lock.acquire()
+        #self.io_stack_lock.acquire()
 
-        try:
+        #try:
             # Send the string to the output stack for the next update
-            self.output_stack.append(string)
-        finally:
-            self.io_stack_lock.release()
+        self.output_stack.append(string)
+        #finally:
+        #    self.io_stack_lock.release()
 
     """Processes an input from this player
     
@@ -86,14 +100,36 @@ class Player:
     def process_input(self, user_input):
         # Check the command
         parameters: list = user_input.lower().split(" ")
-        command: str = parameters[0]
+        command_name: str = parameters[0]
 
-        # Act based on the command
-        # Go to another room
-        if command == "go":
-            self.go(parameters[1])
+        # Find and call the command function
+        for command_n, command in self.commands.items():
+            if command_n == command_name:
+                command.func(self, parameters[1:])
+                return
 
-    def go(self, direction: str):
+        # Otherwise the command didn't exist
+        self.output("\033[31m Unknown command: %s" % command_name)
+
+    """
+    Adds a new command to the player's command list
+    """
+    def add_command(self, command: Command):
+        # If it doesn't exist, add it to the command dictionary
+        if command.name not in self.commands:
+            self.commands.append(command)
+
+    """
+    Go to another room in the given direction
+    """
+    def go(self, parameters: list):
+        if len(parameters) < 1:
+            self.output("Invalid input. Example usage: 'go north'\n")
+            return
+
+        # Which direction are we going in?
+        direction: str = parameters[0]
+
         # Try and enter the new room
         new_room = self.room.try_go(direction)
 
@@ -107,6 +143,13 @@ class Player:
             self.output("You cannot go there!")
 
     """
+    Get the list of available commands
+    """
+    def help(self, parameters: list):
+        for command_name, command in self.commands.items():
+            print("%s: %s" % (command_name, command.usage))
+
+    """
     Runs the loop used to supply input/output on this player
     """
     def input_thread(self):
@@ -117,7 +160,7 @@ class Player:
             self.input(user_input)
 
             # Wait a little for stuff to process
-            time.sleep(0.5)
+            time.sleep(0.2)
 
     def output_thread(self):
         while True:

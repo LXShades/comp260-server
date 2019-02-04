@@ -8,7 +8,6 @@ Attributes:
     game_port: the TCP port that the game will run on
 """
 
-import time
 
 class Server:
     game_port = 6282

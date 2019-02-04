@@ -14,6 +14,7 @@ class Room:
         self.y = y
         self.description = description
         self.connections = connections
+        self.items = []
 
     """
     Called whenever a player enters the room
@@ -21,6 +22,14 @@ class Room:
     def on_enter(self, player: Player):
         # Display the room description to the player
         player.output(self.description)
+
+        # Display item-specific entry descriptions to the player
+        for item in self.items:
+            player.output(item.entry_description)
+
+        # Call item entry callbacks
+        for item in self.items:
+            item.on_player_enter(player)
 
     def try_go(self, direction: str):
         # Figure out which coordinates to move to
