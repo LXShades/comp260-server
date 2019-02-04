@@ -9,12 +9,11 @@ Instance attributes:
 
 
 class Room:
-    def __init__(self, x: int, y: int, description: str, connections: list):
-        self.x = x
-        self.y = y
+    def __init__(self, title: str, description: str, connections: dict, items: list=[]):
+        self.title = title
         self.description = description
         self.connections = connections
-        self.items = []
+        self.items = items
 
     """
     Called whenever a player enters the room
@@ -32,22 +31,11 @@ class Room:
             item.on_player_enter(player)
 
     def try_go(self, direction: str):
-        # Figure out which coordinates to move to
-        destination_name = ""
-
-        if direction == "north":
-            destination_name = "%d,%d" % (self.x, self.y - 1)
-        elif direction == "east":
-            destination_name = "%d,%d" % (self.x + 1, self.y)
-        elif direction == "south":
-            destination_name = "%d,%d" % (self.x, self.y + 1)
-        elif direction == "west":
-            destination_name = "%d,%d" % (self.x - 1, self.y)
-
-        # Can we go there?
-        if destination_name in self.connections and destination_name in self.dungeon.rooms:
-            return self.dungeon.rooms[destination_name]
+        if direction in self.connections and self.connections[direction] in self.dungeon.rooms:
+            # Return the room at this target
+            return self.dungeon.rooms[self.connections[direction]]
         else:
+            # We can't go there!
             return None
 
     def update(self):

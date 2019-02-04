@@ -24,7 +24,7 @@ class Game:
         self.dungeon = Dungeon()
 
         # Create the player
-        self.player = Player(self.dungeon.rooms["0,0"])
+        self.player = Player(self.dungeon.rooms[self.dungeon.entry_room])
 
         # Run the game loop
         self.game_loop()

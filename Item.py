@@ -3,10 +3,10 @@ import Player
 
 
 class Item:
-    def __init__(self, name: str, room: Room, entry_description=None):
+    def __init__(self, name: str, entry_description: str=None):
         # Initialise variables
         self.name = name
-        self.room = room
+        self.room = None
 
         # A list of all commands which can be used on this object
         self.commands = []

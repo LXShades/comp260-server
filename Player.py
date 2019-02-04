@@ -1,7 +1,5 @@
 import Room
 from Command import Command
-#from Colorama import Fore
-
 import threading
 import time
 
@@ -29,9 +27,17 @@ class Player:
 
         # Initialise player commands
         self.commands = {
-            "help": Command("help", Player.help, "Get a list of all usable commands"),
-            "go": Command("go", Player.go, "(north, east, south, west) Go to another room")
+            "help": Command("help", Player.help, "Get a list of all usable commands", "help", 0),
+            "go": Command("go", Player.go, "<north, east, south, west> Go to another room", "go west", 1)
         }
+
+        # Output an initial message to the player
+        self.output(
+"""
+You have entered the dungeon...
+Type 'help' at any time to see your list of commands. Consider using the 'walk into' command to 'walk into the door'.
+"""
+        )
 
         # Spawn in the given room
         self.room = room
@@ -39,17 +45,11 @@ class Player:
 
         # Start IO threads (todo perhaps: move to PlayerController class)
         self.running_input_thread = threading.Thread(daemon=True,
-                                                  target=lambda: self.input_thread())
+                                                     target=lambda: self.input_thread())
         self.running_output_thread = threading.Thread(daemon=True,
-                                                  target=lambda: self.output_thread())
+                                                      target=lambda: self.output_thread())
         self.running_input_thread.start()
         self.running_output_thread.start()
-
-        # Output an initial message to the player
-        self.output("""
-        You have entered the dungeon...
-        Type 'help' at any time to see your list of commands. Consider using the 'walk into' command to 'walk into the door'.
-        """)
         # very good. now try opening the door and going around it
 
     """Updates the player, flushing all inputs and outputs
@@ -105,11 +105,18 @@ class Player:
         # Find and call the command function
         for command_n, command in self.commands.items():
             if command_n == command_name:
-                command.func(self, parameters[1:])
-                return
+                # Ensure the correct number of parameters is supplied
+                if len(parameters) - 1 == command.number_of_parameters:
+                    # Call the command function!
+                    command.func(self, parameters[1:])
+                    return
+                else:
+                    # Show example usage because player doesn't know what they're doing
+                    self.output("Invalid input. Example usage: '%s'" % command.example_usage)
+                    return
 
-        # Otherwise the command didn't exist
-        self.output("\033[31m Unknown command: %s" % command_name)
+        # Or the command didn't exist
+        self.output("Unknown command: %s" % command_name)
 
     """
     Adds a new command to the player's command list
@@ -123,10 +130,6 @@ class Player:
     Go to another room in the given direction
     """
     def go(self, parameters: list):
-        if len(parameters) < 1:
-            self.output("Invalid input. Example usage: 'go north'\n")
-            return
-
         # Which direction are we going in?
         direction: str = parameters[0]
 
@@ -136,7 +139,7 @@ class Player:
         if new_room is not None:
             # In we go!
             self.room = new_room
-            self.output("Entered %d,%d" % (self.room.x, self.room.y))
+            self.output("You enter %s" % self.room.title)
 
             new_room.on_enter(self)
         else:
@@ -154,13 +157,13 @@ class Player:
     """
     def input_thread(self):
         while True:
-            # Get local input from the player
-            user_input: str = input("Enter a command\n")
-
-            self.input(user_input)
-
             # Wait a little for stuff to process
             time.sleep(0.2)
+
+            # Get local input from the player
+            user_input: str = input("Enter a command\n> ")
+
+            self.input(user_input)
 
     def output_thread(self):
         while True:
