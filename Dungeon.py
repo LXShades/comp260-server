@@ -12,3 +12,10 @@ class Dungeon:
         # Assign this dungeon to all of the rooms?
         for coordinates, room in self.rooms.items():
             room.dungeon = self
+
+    """
+    Updates all necessary objects, players, etc in the dungeon
+    """
+    def update(self):
+        for index, room in self.rooms.items():
+            room.update()

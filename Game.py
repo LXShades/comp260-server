@@ -1,6 +1,9 @@
+import time
+
 from Dungeon import Dungeon
 from Player import Player
 from Room import Room
+from Server import Server
 
 """The game! This is where everything runs.
 
@@ -14,6 +17,9 @@ Attributes:
 
 class Game:
     def __init__(self):
+        # Create the server interface
+        self.server = Server()
+
         # Create the dungeon
         self.dungeon = Dungeon()
 
@@ -24,12 +30,9 @@ class Game:
         self.game_loop()
 
     def game_loop(self):
-        while 1:
-            user_input: str = input("Enter a command")
+        while True:
+            # Update the game
+            self.dungeon.update()
+            self.player.update()
 
-            parameters: list = user_input.lower().split(" ")
-            command: str = parameters[0]
-
-            # Go to another room
-            if command == "go":
-                self.player.go(parameters[1])
+            time.sleep(0.1)

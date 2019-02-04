@@ -40,3 +40,6 @@ class Room:
             return self.dungeon.rooms[destination_name]
         else:
             return None
+
+    def update(self):
+        pass
