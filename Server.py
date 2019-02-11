@@ -1,5 +1,6 @@
 import socket
 import threading
+import time
 
 """
 Server handles network communications between players and the server
@@ -30,8 +31,7 @@ class Server:
         try:
             Server.accept_socket.bind(("localhost", Server.game_port))
         except socket.error as err:
-            print("socket error:")
-            print(err)
+            print("socket error: perhaps you have more than one instance of this game running?")
 
         # Listen for connections
         Server.accept_socket.listen()
@@ -39,6 +39,21 @@ class Server:
         # Connect any new players to the dungeon
         while True:
             client_socket, address = Server.accept_socket.accept()
-            data = client_socket.recv(1024)
+
             print("Got connection!")
-            print(data.decode("utf-8"))
+
+            # Connection received! Try to serve it
+            is_connected = True
+            while is_connected:
+                try:
+                    data = client_socket.recv(1024)
+
+                    if(len(data) > 0):
+                        print("Server recv:" + data.decode("utf-8"))
+                    else:
+                        is_connected = False
+                except socket.error as err:
+                    print("Client error, closing client")
+                    is_connected = False
+
+                time.sleep(0.1)
