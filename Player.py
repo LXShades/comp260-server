@@ -2,6 +2,7 @@ import Room
 from Command import Command
 import threading
 import time
+import socket
 
 """A player in the game!
 
@@ -16,11 +17,11 @@ class Player:
     Parameters:
         room: the room to spawn in
     """
-    def __init__(self, room: Room, is_local: bool = False):
-        # Initialise variables
-        self.is_local = is_local
-
+    def __init__(self, room: Room, player_socket: socket):
         # Initialise player IO
+        self.socket = player_socket
+        self.is_connected = True
+
         self.input_stack = []
         self.output_stack = []
         self.io_stack_lock = threading.Lock()
@@ -43,14 +44,13 @@ Type 'help' at any time to see your list of commands. Consider using the 'walk i
         self.room = room
         self.room.on_enter(self)
 
-        # Start IO threads (todo perhaps: move to PlayerController class)
+        # Run the networking threads
         self.running_input_thread = threading.Thread(daemon=True,
                                                      target=lambda: self.input_thread())
         self.running_output_thread = threading.Thread(daemon=True,
                                                       target=lambda: self.output_thread())
         self.running_input_thread.start()
         self.running_output_thread.start()
-        # very good. now try opening the door and going around it
 
     """Updates the player, flushing all inputs and outputs
     Returns nothing
@@ -149,32 +149,40 @@ Type 'help' at any time to see your list of commands. Consider using the 'walk i
     Get the list of available commands
     """
     def help(self, parameters: list):
+        self.output("You can do the following commands:")
         for command_name, command in self.commands.items():
-            print("%s: %s" % (command_name, command.usage))
+            self.output("<font color='pink'>%s: %s</font><br>" % (command_name, command.usage))
 
     """
     Runs the loop used to supply input/output on this player
     """
     def input_thread(self):
-        while True:
-            # Wait a little for stuff to process
-            time.sleep(0.2)
+        while self.is_connected:
+            # Get the next message from the player
+            try:
+                data = self.socket.recv(1024)
 
-            # Get local input from the player
-            user_input: str = input("Enter a command\n> ")
-
-            self.input(user_input)
+                if len(data) > 0:
+                    self.input(data.decode("utf-8"))
+                else:
+                    self.is_connected = False
+            except socket.error as error:
+                print("Client error, removing client")
+                self.is_connected = False
 
     def output_thread(self):
-        while True:
+        while self.is_connected:
             # Output the current messages to the player, if possible
             self.io_stack_lock.acquire()
 
             try:
-                # Print any existing player outputs
+                # Send any existing player outputs
                 for output_string in self.output_stack:
-                    print(output_string)
+                    self.socket.send(output_string.encode())
 
                 self.output_stack = []
+            except socket.error as error:
+                print("Client error, removing client")
+                self.is_connected = False
             finally:
                 self.io_stack_lock.release()

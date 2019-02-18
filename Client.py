@@ -46,25 +46,43 @@ class Client:
                 time.sleep(5)
 
             if self.has_connected:
-                # Startup the send thread!
+                # Startup the send and receive threads
                 threading.Thread(target=Client.send_thread, args=(self,), daemon=True).start()
+                threading.Thread(target=Client.recv_thread, args=(self,), daemon=True).start()
 
                 while self.has_connected is True and self.is_closing is False:
                     time.sleep(0.1)
 
     def send_thread(self):
-        while True:
+        while self.has_connected:
             while not self.input_queue.empty():
-                input_as_bytes: bytes = self.input_queue.get(False).encode()
+                input: str = self.input_queue.get(False)
+                input_as_bytes: bytes = input.encode()
 
                 try:
                     # Send all unsent inputs to the server
                     self.server_socket.send(input_as_bytes)
-                    self.push_output("sent, yay")
                 except socket.error as error:
-                    self.push_output("You have been disconnected from the server due to reasons.")
+                    self.push_output("You have been disconnected from the server due to <i>active reasons</i>.")
                     self.push_output(str(error))
                     self.has_connected = False
+
+            time.sleep(0.1)
+
+    def recv_thread(self):
+        # Show all messages received from the server
+        while self.has_connected:
+            try:
+                data = self.server_socket.recv(1024)
+
+                if len(data) > 0:
+                    self.push_output(data.decode("utf-8"))
+                else:
+                    self.has_connected = False
+            except socket.error as error:
+                self.push_output("You have been disconnected from the server due to <i>passive reasons</i>.")
+                self.push_output(str(error))
+                self.has_connected = False
 
             time.sleep(0.1)
 
@@ -173,6 +191,3 @@ class MainWindow(QWidget):
         self.enter_button.move(width - self.enter_button_width - 5, height - self.input_height - 5)
         self.input_box.move(5, height - self.input_height - 5)
         self.input_box.resize(width - self.enter_button_width - 10, self.input_height)
-
-# Run the client! (TEMP)
-client = Client()

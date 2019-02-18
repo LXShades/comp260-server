@@ -1,9 +1,11 @@
 import time
+import threading
 
 from Dungeon import Dungeon
 from Player import Player
 from Room import Room
 from Server import Server
+from Client import Client
 
 """The game! This is where everything runs.
 
@@ -17,14 +19,15 @@ Attributes:
 
 class Game:
     def __init__(self):
-        # Create the server interface
-        self.server = Server()
-
         # Create the dungeon
         self.dungeon = Dungeon()
 
-        # Create the player
-        self.player = Player(self.dungeon.rooms[self.dungeon.entry_room])
+        # Create the server interface
+        self.server = Server(self.dungeon)
+
+        # Create a client for the local test player (temp). Comment this out when a player-less server is desired
+        self.local_client = None
+        threading.Thread(target=self.create_local_client, daemon=True).start()
 
         # Run the game loop
         self.game_loop()
@@ -33,6 +36,8 @@ class Game:
         while True:
             # Update the game
             self.dungeon.update()
-            self.player.update()
 
             time.sleep(0.1)
+
+    def create_local_client(self):
+        self.local_client = Client()

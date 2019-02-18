@@ -11,11 +11,15 @@ Attributes:
 
 
 class Server:
+    game = None
     game_port = 6282
 
     accept_socket = None
 
-    def __init__(self):
+    def __init__(self, game_):
+        # Initialise vars
+        Server.game = game_  # todo not be messy
+
         # Start the player-accepting thread
         self.accept_thread = threading.Thread(name="accept_thread", daemon=True, target=Server.accept_players)
         self.accept_thread.start()
@@ -38,22 +42,10 @@ class Server:
 
         # Connect any new players to the dungeon
         while True:
+            # Accept incoming players
             client_socket, address = Server.accept_socket.accept()
 
-            print("Got connection!")
+            print("Got new connection! Adding player.")
 
-            # Connection received! Try to serve it
-            is_connected = True
-            while is_connected:
-                try:
-                    data = client_socket.recv(1024)
-
-                    if(len(data) > 0):
-                        print("Server recv:" + data.decode("utf-8"))
-                    else:
-                        is_connected = False
-                except socket.error as err:
-                    print("Client error, closing client")
-                    is_connected = False
-
-                time.sleep(0.1)
+            # Create the player
+            Server.game.add_player(client_socket)
