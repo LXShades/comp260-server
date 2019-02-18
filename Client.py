@@ -1,13 +1,14 @@
 import socket
-import errno
-
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
 import sys
 import threading
 import time
 import queue
+
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
+from PyQt5.QtCore import *
+
+from Global import Global
 
 '''
 The client app. Shows client interface and manages interfacing with the server
@@ -18,6 +19,10 @@ Attributes:
 
 
 class Client:
+    # This is set to false if the client is spawned as a thread by the server
+    is_independent = True
+
+    """Initialises the client app thread and all sub-threads"""
     def __init__(self):
         # Create the UI
         self.gui = GUIThread(self)
@@ -132,9 +137,17 @@ class MainWindow(QWidget):
         self.width = 640
         self.height = 480
 
+        # Create the fonts
+        default_font = QFont("Times", 13, QFont.DemiBold)
+        self.setFont(default_font)
+        self.setStyleSheet("""
+            QWidget {background-color: #111e31; color: #afab9b;}
+            """)
+
         # Setup controls
         # Game text output
         self.output_box = QTextEdit(self)
+        self.output_box.setReadOnly(True)
 
         # Input enter button
         self.enter_button = QPushButton("Enter", self)
@@ -191,3 +204,8 @@ class MainWindow(QWidget):
         self.enter_button.move(width - self.enter_button_width - 5, height - self.input_height - 5)
         self.input_box.move(5, height - self.input_height - 5)
         self.input_box.resize(width - self.enter_button_width - 10, self.input_height)
+
+
+# Start the client if it's not being created by the server
+if Global.is_server is False:
+    Client()

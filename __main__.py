@@ -1,6 +1,5 @@
 from Game import Game
 
-import random
 
 def main():
     Game()  # Create the game

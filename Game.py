@@ -5,7 +5,7 @@ from Dungeon import Dungeon
 from Player import Player
 from Room import Room
 from Server import Server
-from Client import Client
+from Global import Global
 
 """The game! This is where everything runs.
 
@@ -19,6 +19,10 @@ Attributes:
 
 class Game:
     def __init__(self):
+        # Init vars
+        self.local_client = None
+        Global.is_server = True  # Used for client spawning
+
         # Create the dungeon
         self.dungeon = Dungeon()
 
@@ -26,7 +30,6 @@ class Game:
         self.server = Server(self.dungeon)
 
         # Create a client for the local test player (temp). Comment this out when a player-less server is desired
-        self.local_client = None
         threading.Thread(target=self.create_local_client, daemon=True).start()
 
         # Run the game loop
@@ -40,4 +43,6 @@ class Game:
             time.sleep(0.1)
 
     def create_local_client(self):
+        # Start the client!
+        from Client import Client
         self.local_client = Client()
