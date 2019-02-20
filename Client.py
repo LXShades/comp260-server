@@ -123,7 +123,22 @@ class GUIThread:
         self.client.on_gui_close()
 
 
+"""
+The main window for the client.
+
+Attributes:
+    custom_formatting_spec: A list of custom HTML tags followed by their replacement opening tag and closing tag,
+                            respectively.
+"""
 class MainWindow(QWidget):
+    custom_formatting_spec = [
+        "player", "<font color='orange'>", "</font>",
+        "item", "<font color='lightblue'>", "</font>",
+        "room", "<font color='yellow'>", "</font>",
+        "command", "<font color='yellow'>", "</font>",
+        "input", "<font color='#508050'>", "</font>"
+    ]
+
     def __init__(self, client: Client):
         super().__init__()
 
@@ -175,7 +190,7 @@ class MainWindow(QWidget):
 
     def on_input_enter(self):
         # Echo the player's input
-        self.output_box.append("> " + self.input_box.text())
+        self.output("<+input>> " + self.input_box.text() + "<-input><br>")
 
         # Send the input to the client class
         self.client.push_input(self.input_box.text())
@@ -183,8 +198,17 @@ class MainWindow(QWidget):
         # Empty the text box
         self.input_box.setText("")
 
-    def output(self, text):
-        self.output_box.append(text)
+    def output(self, text: str):
+        # Format the custom HTML tags
+        for f in range(0, len(MainWindow.custom_formatting_spec), 3):
+            # Replace the opening tag
+            text = text.replace("<+" + MainWindow.custom_formatting_spec[f] + ">", MainWindow.custom_formatting_spec[f + 1])
+
+            # Replace the closing tag
+            text = text.replace("<-" + MainWindow.custom_formatting_spec[f] + ">", MainWindow.custom_formatting_spec[f + 2])
+
+        # Append HTML to the text. This is a hack because text is only randomly interpreted as HMTL otherwise
+        self.output_box.append("<a></a>" + text + "<br>")
 
     def keyPressEvent(self, event):
         # Handle the Enter key as equivalent to clicking Enter button

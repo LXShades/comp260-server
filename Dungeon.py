@@ -16,8 +16,8 @@ class Dungeon:
 
             "The bathroom": Room(
                 "The bathroom",
-                "You enter the bathroom with a solemn heart. It smells like bathroom.<br>" +
-                "The only pleasant sight is the mirror on the wall; rather, the face within it.<br><br>" +
+                "You enter the bathroom with a solemn heart. It smells like toilet, and looks like toilets.<br>" +
+                "The only pleasant sight here is the mirror on the wall; rather, the face within it.<br><br>" +
                 "You look beautiful today.",
                 {"east": "The Foyer"},
             ),
@@ -26,7 +26,7 @@ class Dungeon:
                 "The library",
                 "This room appears to be some sort of ancient, physical website. It's filled with reliable sources.",
                 {"south": "The Foyer"},
-                [Item("Book", "There is an open book sitting in the corner.")]
+                [Item("Book", "There is an open <+item>book<-item> sitting in the corner.")]
             )
         }
 

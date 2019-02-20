@@ -39,16 +39,16 @@ class Player:
 
         # Give player a name
         self.name = Player.generate_name()
-        room.dungeon.broadcast("<i><font color='green'>%s has entered the game!</font></i>" % self.name)
+        room.dungeon.broadcast("<i><font color='green'><+player>%s<-player> has entered the game!</font></i>" % self.name)
 
         # Output an initial message to the player
-        self.output("<i>You awaken into this world as %s.</i>" % self.name)
+        self.output("<i>You awaken into this world as <+player>%s.<-player></i>" % self.name)
 
         # Spawn in the given room
         self.room = room
         self.room.on_enter(self)
 
-        self.output("dfewfekltkrt. ertl. <i>Type help to view your list of commands.</i>")
+        self.output("<i>Type help to view your list of commands.</i>")
 
         # Run the networking threads
         self.running_input_thread = threading.Thread(daemon=True, target=lambda: self.input_thread())
@@ -121,7 +121,7 @@ class Player:
             # Reconstruct the speech text from the parameters
             speech = " ".join(parameters)
 
-            self.room.dungeon.broadcast("<font color='yellow'>%s</font> says: <font color='orange'>%s</font>" % (self.name, speech))
+            self.room.dungeon.broadcast("<+player>%s<-player> says: <+speech>%s<-speech>" % (self.name, speech))
         else:
             # Teach the user how to talk
             self.output("Usage: say I am beautiful, you are beautiful, we're all beautiful")
@@ -142,18 +142,19 @@ class Player:
 
             # Into the new room!
             self.room = new_room
-            self.output("You enter %s" % self.room.title)
+            self.output("<i>You enter <+room>%s</-room></i>" % self.room.title)
 
             # Enter the new room
             new_room.on_enter(self)
         else:
-            self.output("You are unable to go this way.")
+            self.output("<i>You are unable to go this way.</i>")
 
     """
     Changes your name
     """
     def name(self, parameters: list):
         # Pick a random message to show after changing the name
+        name_message = ""
         randomizer = random.randint(0, 3)
 
         if randomizer == 0:
@@ -169,12 +170,13 @@ class Player:
         self.room.dungeon.broadcast("<font color='blue'><b>" + name_message + "</b></font>")
 
     """
-    Get the list of available commands
+    Show the list of available commands
     """
     def help(self, parameters: list):
         self.output("You can perform the following commands:")
+
         for command_name, command in self.commands.items():
-            self.output("<b>%s:</b> <i>%s</i><br>" % (command_name, command.usage))
+            self.output("<b><+item>%s:<-item></b> <i>%s</i><br>" % (command_name, command.usage))
 
     """Generates a player name"""
     @staticmethod
