@@ -3,6 +3,8 @@ from Command import Command
 import threading
 import socket
 import random
+import time
+import queue
 
 """A player in the game!
 
@@ -23,9 +25,8 @@ class Player:
         self.socket = player_socket
         self.is_connected = True
 
-        self.input_stack = []
-        self.output_stack = []
-        self.io_stack_lock = threading.Lock()
+        self.input_stack = queue.Queue()
+        self.output_stack = queue.Queue()
 
         # Initialise player commands
         self.commands = {
@@ -42,16 +43,12 @@ class Player:
 
         # Output an initial message to the player
         self.output("<i>You awaken into this world as %s.</i>" % self.name)
-        self.output(
-"""
-Welcome to the Foyer.\n
-Type 'help' at any time to see your list of commands.\n
-"""
-        )
 
         # Spawn in the given room
         self.room = room
         self.room.on_enter(self)
+
+        self.output("dfewfekltkrt. ertl. <i>Type help to view your list of commands.</i>")
 
         # Run the networking threads
         self.running_input_thread = threading.Thread(daemon=True, target=lambda: self.input_thread())
@@ -63,17 +60,9 @@ Type 'help' at any time to see your list of commands.\n
     Returns nothing
     """
     def update(self):
-        # Wait for input thread if necessary
-        self.io_stack_lock.acquire()
-
-        try:
-            # Flush inputs
-            for input_string in self.input_stack:
-                self.process_input(input_string)
-
-            self.input_stack = []
-        finally:
-            self.io_stack_lock.release()
+        # Flush inputs
+        while not self.input_stack.empty():
+            self.process_input(self.input_stack.get(False))
 
     """Outputs a string to the player
 
@@ -81,14 +70,8 @@ Type 'help' at any time to see your list of commands.\n
     Returns: nothing
     """
     def output(self, string: str):
-        # Lock the IO stack
-        #self.io_stack_lock.acquire()
-
-        #try:
-            # Send the string to the output stack for the next update
-        self.output_stack.append(string)
-        #finally:
-        #    self.io_stack_lock.release()
+        # Send the string to the output stack for the next update
+        self.output_stack.put(string, False)
 
     """Processes an input from this player
     
@@ -96,14 +79,8 @@ Type 'help' at any time to see your list of commands.\n
     Returns: nothing
     """
     def input(self, user_input: str):
-        # Lock the IO stack
-        self.io_stack_lock.acquire()
-
-        try:
-            # Send the input to the input stack for the next update
-            self.input_stack.append(user_input)
-        finally:
-            self.io_stack_lock.release()
+        # Send the input to the input stack for the next update
+        self.input_stack.put(user_input, False)
 
     def process_input(self, user_input):
         # Check the command
@@ -229,16 +206,13 @@ Type 'help' at any time to see your list of commands.\n
     def output_thread(self):
         while self.is_connected:
             # Output the current messages to the player, if possible
-            self.io_stack_lock.acquire()
-
             try:
                 # Send any existing player outputs
-                for output_string in self.output_stack:
-                    self.socket.send(output_string.encode())
-
-                self.output_stack = []
+                while not self.output_stack.empty():
+                    self.socket.send(self.output_stack.get(False).encode())
             except socket.error as error:
                 print("Client error, removing client")
                 self.is_connected = False
-            finally:
-                self.io_stack_lock.release()
+
+            # Wait a sec
+            time.sleep(0.1)

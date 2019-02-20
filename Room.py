@@ -18,14 +18,14 @@ class Room:
     Called whenever a player enters the room
     """
     def on_enter(self, player: Player):
-        self.broadcast("<i>%s entered the room.</i><br>" % player.name)
+        self.broadcast("<i>%s entered the room.</i><br>" % player.name, [player])
         self.on_player_look(player)
 
     """
     Called whenever a player exits the room
     """
     def on_exit(self, player: Player, direction: str):
-        self.broadcast("<i>%s left the room, heading %s</i><br>" % (player.name, direction))
+        self.broadcast("<i>%s went %s</i><br>" % (player.name, direction), [player])
 
     """Called when a player tries to move in a direction.
     
@@ -57,9 +57,9 @@ class Room:
                 player.output("* %s is here.<br>" % other_player.name)
 
     """Broadcasts some text to every player in the room"""
-    def broadcast(self, text_to_broadcast: str):
+    def broadcast(self, text_to_broadcast: str, exclude_players: list = None):
         for player in self.dungeon.players:
-            if player.room is self:
+            if player.room is self and exclude_players is None or player not in exclude_players:
                 player.output(text_to_broadcast)
 
     def update(self):

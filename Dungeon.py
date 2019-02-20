@@ -17,7 +17,7 @@ class Dungeon:
             "The bathroom": Room(
                 "The bathroom",
                 "You enter the bathroom with a solemn heart. It smells like bathroom.<br>" +
-                "The only pleasant sight is the mirror on the wall; rather, the face within it.<br>" +
+                "The only pleasant sight is the mirror on the wall; rather, the face within it.<br><br>" +
                 "You look beautiful today.",
                 {"east": "The Foyer"},
             ),
@@ -68,6 +68,7 @@ class Dungeon:
         self.players.append(Player(self.rooms[self.entry_room], player_socket))
 
     """Broadcasts a text to all players in the dungeon"""
-    def broadcast(self, text_to_broadcast: str):
+    def broadcast(self, text_to_broadcast: str, exclude_players: list = None):
         for player in self.players:
-            player.output(text_to_broadcast)
+            if exclude_players is None or player not in exclude_players:
+                player.output(text_to_broadcast)

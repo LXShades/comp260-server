@@ -1,6 +1,6 @@
 import socket
 import threading
-import time
+import sys
 
 """
 Server handles network communications between players and the server
@@ -12,40 +12,40 @@ Attributes:
 
 class Server:
     game = None
-    game_port = 6282
 
-    accept_socket = None
-
-    def __init__(self, game_):
+    def __init__(self, game):
         # Initialise vars
-        Server.game = game_  # todo not be messy
+        self.game = game
+        self.game_port = 6282
+        self.accept_socket = None
 
         # Start the player-accepting thread
-        self.accept_thread = threading.Thread(name="accept_thread", daemon=True, target=Server.accept_players)
+        self.accept_thread = threading.Thread(name="accept_thread", target=lambda: self.accept_players(), daemon=True)
         self.accept_thread.start()
 
     def receive_packets(self):
         pass
 
-    @staticmethod
-    def accept_players():
+    def accept_players(self):
+        self.game = self.game
         # Setup server socket
-        Server.accept_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.accept_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         try:
-            Server.accept_socket.bind(("localhost", Server.game_port))
+            self.accept_socket.bind(("localhost", self.game_port))
         except socket.error as err:
-            print("socket error: perhaps you have more than one instance of this game running?")
+            print("Could not create server socket. That's kinda important brah. Shutting down.")
+            return
 
         # Listen for connections
-        Server.accept_socket.listen()
+        self.accept_socket.listen()
 
         # Connect any new players to the dungeon
         while True:
             # Accept incoming players
-            client_socket, address = Server.accept_socket.accept()
+            client_socket, address = self.accept_socket.accept()
 
             print("Got new connection! Adding player.")
 
             # Create the player
-            Server.game.add_player(client_socket)
+            self.game.add_player(client_socket)

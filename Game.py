@@ -20,7 +20,7 @@ Attributes:
 class Game:
     def __init__(self):
         # Init vars
-        self.local_client = None
+        self.is_local_client_closing = False
         Global.is_server = True  # Used for client spawning
 
         # Create the dungeon
@@ -30,19 +30,26 @@ class Game:
         self.server = Server(self.dungeon)
 
         # Create a client for the local test player (temp). Comment this out when a player-less server is desired
-        threading.Thread(target=self.create_local_client, daemon=True).start()
+        self.start_local_client()
 
         # Run the game loop
         self.game_loop()
 
     def game_loop(self):
-        while True:
+        while not self.is_local_client_closing:
             # Update the game
             self.dungeon.update()
 
             time.sleep(0.1)
 
+    def start_local_client(self):
+        # Start the client thread
+        threading.Thread(target=self.create_local_client, daemon=True).start()
+
     def create_local_client(self):
-        # Start the client!
+        # Create a local client!
         from Client import Client
-        self.local_client = Client()
+        Client()
+
+        # Client has closed, shutdown
+        self.is_local_client_closing = True
