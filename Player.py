@@ -121,7 +121,7 @@ class Player:
             # Reconstruct the speech text from the parameters
             speech = " ".join(parameters)
 
-            self.room.dungeon.broadcast("<+player>%s<-player> says: <+speech>%s<-speech>" % (self.name, speech))
+            self.room.broadcast("<+player>%s<-player> says: <+speech>%s<-speech>" % (self.name, speech))
         else:
             # Teach the user how to talk
             self.output("Usage: say I am beautiful, you are beautiful, we're all beautiful")

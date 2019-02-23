@@ -20,14 +20,9 @@ class Server:
         self.accept_socket = None
 
         # Start the player-accepting thread
-        self.accept_thread = threading.Thread(name="accept_thread", target=lambda: self.accept_players(), daemon=True)
-        self.accept_thread.start()
+        threading.Thread(name="accept_thread", target=lambda: self.accept_thread(), daemon=True).start()
 
-    def receive_packets(self):
-        pass
-
-    def accept_players(self):
-        self.game = self.game
+    def accept_thread(self):
         # Setup server socket
         self.accept_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
