@@ -5,6 +5,7 @@ import socket
 import random
 import time
 import queue
+import cgi # for html-escape
 
 """A player in the game!
 
@@ -83,6 +84,9 @@ class Player:
         self.input_stack.put(user_input, False)
 
     def process_input(self, user_input):
+        # Sanitise the input
+        user_input = cgi.escape(user_input)
+
         # Check the command
         parameters: list = user_input.split(" ")
         command_name: str = parameters[0]

@@ -164,6 +164,9 @@ class MainWindow(QWidget):
         self.output_box = QTextEdit(self)
         self.output_box.setReadOnly(True)
 
+        self.info_box = QTextEdit(self)
+        self.info_box.setReadOnly(True)
+
         # Input enter button
         self.enter_button = QPushButton("Enter", self)
         self.enter_button_width = 80
@@ -222,12 +225,17 @@ class MainWindow(QWidget):
         width = self.geometry().width()
         height = self.geometry().height()
 
+        output_box_width = int(width * 0.7)
+        room_title_height = 30
+
         # Resize all controls
         self.output_box.move(5, 5)
-        self.output_box.resize(width - 10, height - self.input_height - 15)
+        self.output_box.resize(output_box_width - 5, height - self.input_height - 15)
         self.enter_button.move(width - self.enter_button_width - 5, height - self.input_height - 5)
         self.input_box.move(5, height - self.input_height - 5)
         self.input_box.resize(width - self.enter_button_width - 10, self.input_height)
+        self.info_box.move(output_box_width, room_title_height + 10)
+        self.info_box.resize(width - output_box_width - 5, height - self.input_height - 15)
 
 
 # Start the client if it's not being created by the server
