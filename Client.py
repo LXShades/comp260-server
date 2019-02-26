@@ -3,6 +3,7 @@ import sys
 import threading
 import time
 import queue
+import re
 
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
@@ -136,7 +137,10 @@ class MainWindow(QWidget):
         "item", "<font color='lightblue'>", "</font>",
         "room", "<font color='yellow'>", "</font>",
         "command", "<font color='yellow'>", "</font>",
-        "input", "<font color='#508050'>", "</font>"
+        "input", "<font color='#508050'>", "</font>",
+        "action", "<font color='yellow'><i>", "</i></font>",
+        "event", "<font color='white'><i>", "</i></font>",
+        "info", "<i>", "</i>",
     ]
 
     def __init__(self, client: Client):
@@ -164,8 +168,14 @@ class MainWindow(QWidget):
         self.output_box = QTextEdit(self)
         self.output_box.setReadOnly(True)
 
-        self.info_box = QTextEdit(self)
-        self.info_box.setReadOnly(True)
+        # Room title box
+        self.room_title = QTextEdit(self)
+        self.room_title.setText("Room")
+        self.room_title.setReadOnly(True)
+
+        # Room info box
+        self.room_info = QTextEdit(self)
+        self.room_info.setReadOnly(True)
 
         # Input enter button
         self.enter_button = QPushButton("Enter", self)
@@ -210,8 +220,29 @@ class MainWindow(QWidget):
             # Replace the closing tag
             text = text.replace("<-" + MainWindow.custom_formatting_spec[f] + ">", MainWindow.custom_formatting_spec[f + 2])
 
-        # Append HTML to the text. This is a hack because text is only randomly interpreted as HMTL otherwise
-        self.output_box.append("<a></a>" + text + "<br>")
+        # Process additional custom HTML tags for targeting other widgets
+        custom_ui_targets = ["<+room_title>", "<-room_title>", self.room_title,
+                             "<+room_info>", "<-room_info>", self.room_info]
+
+        for f in range(0, len(custom_ui_targets), 3):
+            tag_start = text.find(custom_ui_targets[f])
+            tag_end = text.find(custom_ui_targets[f + 1])
+
+            if tag_start is not -1 and tag_end is not -1:
+                # Place the tagged text into the appropriate widget
+                custom_ui_targets[f + 2].setText(text[tag_start + len(custom_ui_targets[f]):tag_end])
+
+                # Strip this tag out of the text output
+                text = text[0:tag_start] + text[tag_end + len(custom_ui_targets[f + 1]):]
+
+        # Present the output only if there's some plaintext output available
+        if MainWindow.text_is_readable(text):
+            # Append HTML to the text. This is a hack, because text is not guaranteed to be interpreted as HTML otherwise...
+            self.output_box.append("<a></a>" + text)
+
+    @staticmethod
+    def text_is_readable(text: str):
+        return len(re.sub('<[^<]+?>', '', text)) > 0
 
     def keyPressEvent(self, event):
         # Handle the Enter key as equivalent to clicking Enter button
@@ -229,13 +260,16 @@ class MainWindow(QWidget):
         room_title_height = 30
 
         # Resize all controls
+        self.room_title.move(output_box_width + 5, 5)
+        self.room_title.resize(width - output_box_width - 10, room_title_height)
         self.output_box.move(5, 5)
         self.output_box.resize(output_box_width - 5, height - self.input_height - 15)
         self.enter_button.move(width - self.enter_button_width - 5, height - self.input_height - 5)
+        self.enter_button.resize(self.enter_button_width, self.input_height)
         self.input_box.move(5, height - self.input_height - 5)
         self.input_box.resize(width - self.enter_button_width - 10, self.input_height)
-        self.info_box.move(output_box_width, room_title_height + 10)
-        self.info_box.resize(width - output_box_width - 5, height - self.input_height - 15)
+        self.room_info.move(output_box_width + 5, room_title_height + 10)
+        self.room_info.resize(width - output_box_width - 10, height - self.input_height - room_title_height - 20)
 
 
 # Start the client if it's not being created by the server

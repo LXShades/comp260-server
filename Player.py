@@ -43,13 +43,13 @@ class Player:
         room.dungeon.broadcast("<i><font color='green'><+player>%s<-player> has entered the game!</font></i>" % self.name)
 
         # Output an initial message to the player
-        self.output("<i>You awaken into this world as <+player>%s.<-player></i>" % self.name)
+        self.output("<+event>You awaken into this world as <+player>%s.<-player><-event>" % self.name)
 
         # Spawn in the given room
         self.room = room
         self.room.on_enter(self)
 
-        self.output("<i>Type help to view your list of commands.</i>")
+        self.output("<+info><i>Type help to view your list of commands.</i><-info>")
 
         # Run the networking threads
         self.running_input_thread = threading.Thread(daemon=True, target=lambda: self.input_thread())
@@ -162,16 +162,16 @@ class Player:
         randomizer = random.randint(0, 3)
 
         if randomizer == 0:
-            name_message = "Actually, " + self.name + "'s real name was " + parameters[0] + " this whole time."
+            name_message = "Actually, <+player>" + self.name + "<-player>'s real name was <+player>" + parameters[0] + "<-player> this whole time."
         elif randomizer == 1:
-            name_message = "Scratch that. " + self.name + "'s name is " + parameters[0] + " now."
+            name_message = "Scratch that. <+player>" + self.name + "<-player>'s name is <+player>" + parameters[0] + "<-player> now."
         elif randomizer == 2:
-            name_message = self.name + " had us fooled all along, and has revealed their true name, " + parameters[0] + "!"
+            name_message = "<+player>" + self.name + "<-player> had us fooled all along, and has revealed their true name, <+player>" + parameters[0] + "<-player>!"
         elif randomizer == 3:
-            name_message = "Wait, " + self.name + " changed their mind. Call them " + parameters[0] + " from now on."
+            name_message = "Wait, <+player>" + self.name + "<-player> changed their mind. Call them <+player>" + parameters[0] + "<-player> from now on."
 
         self.name = parameters[0]
-        self.room.dungeon.broadcast("<font color='blue'><b>" + name_message + "</b></font>")
+        self.room.dungeon.broadcast("<+event>" + name_message + "<-event>")
 
     """
     Show the list of available commands

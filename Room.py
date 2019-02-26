@@ -18,7 +18,7 @@ class Room:
     Called whenever a player enters the room
     """
     def on_enter(self, player: Player):
-        self.broadcast("<i><+player>%s<-player> entered the room.</i><br>" % player.name, [player])
+        self.broadcast("<+action><+player>%s<-player> entered the room.<-action><br>" % player.name, [player])
         self.on_player_look(player)
 
         # Call item entry callbacks
@@ -29,7 +29,7 @@ class Room:
     Called whenever a player exits the room
     """
     def on_exit(self, player: Player, direction: str):
-        self.broadcast("<i><+player>%s<-player> went %s</i><br>" % (player.name, direction), [player])
+        self.broadcast("<+action><+player>%s<-player> went %s<-action><br>" % (player.name, direction), [player])
 
     """Called when a player tries to move in a direction.
     
@@ -44,17 +44,25 @@ class Room:
 
     """Called when the player uses the look command"""
     def on_player_look(self, player: Player):
-        # Display the room description to the player
-        player.output(self.description + "<br>")
+        # Send the room title
+        player.output("<+room_title>" + self.title + "<-room_title>")
 
-        # Display item-specific entry descriptions to the player
+        # Send the room info
+        room_info = "<+room_info>"
+        room_info += self.description + "<br><br>"
+
+        # Display item-specific entry descriptions
         for item in self.items:
-            player.output("* %s" % item.entry_description)
+            room_info += "* %s" % item.entry_description
 
         # Display names of other players in this room
         for other_player in self.dungeon.players:
             if other_player is not player and other_player.room is self:
-                player.output("* <+player>%s<-player> is here.<br>" % other_player.name)
+                room_info += "* <+player>%s<-player> is here.<br>" % other_player.name
+
+        # Send to the player
+        room_info += "<-room_info><br>"
+        player.output(room_info)
 
     """Broadcasts some text to every player in the room"""
     def broadcast(self, text_to_broadcast: str, exclude_players: list = None):
