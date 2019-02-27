@@ -58,7 +58,7 @@ class Room:
         # Display names of other players in this room
         for other_player in self.dungeon.players:
             if other_player is not player and other_player.room is self:
-                room_info += "* <+player>%s<-player> is here.<br>" % other_player.name
+                room_info += "* <+player>%s<-player> is here.<br>" % other_player.cmd_rename
 
         # Send to the player
         room_info += "<-room_info><br>"

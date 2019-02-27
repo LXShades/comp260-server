@@ -7,6 +7,7 @@ Server handles network communications between players and the server
 
 Attributes:
     game_port: the TCP port that the game will run on
+    listening_socket: the socket listening for TCP connections
 """
 
 
@@ -17,28 +18,29 @@ class Server:
         # Initialise vars
         self.game = game
         self.game_port = 6282
-        self.accept_socket = None
+        self.listening_socket = None
 
         # Start the player-accepting thread
         threading.Thread(name="accept_thread", target=lambda: self.accept_thread(), daemon=True).start()
 
+    """Thread that accepts incoming player connections"""
     def accept_thread(self):
         # Setup server socket
-        self.accept_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         try:
-            self.accept_socket.bind(("localhost", self.game_port))
+            self.listening_socket.bind(("localhost", self.game_port))
         except socket.error as err:
-            print("Could not create server socket. That's kinda important brah. Shutting down.")
+            print("Could not create server socket. The server could be running already. Shutting down.")
             return
 
         # Listen for connections
-        self.accept_socket.listen()
+        self.listening_socket.listen()
 
         # Connect any new players to the dungeon
         while True:
             # Accept incoming players
-            client_socket, address = self.accept_socket.accept()
+            client_socket, address = self.listening_socket.accept()
 
             print("Got new connection! Adding player.")
 

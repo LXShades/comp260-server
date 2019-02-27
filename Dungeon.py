@@ -56,7 +56,7 @@ class Dungeon:
         # Remove disconnected players
         for player_id in range(0, len(self.players)):
             if not self.players[player_id].is_connected:
-                self.broadcast("<i>%s has left the game.</i>" % self.players[player_id].name)
+                self.broadcast("<i>%s has left the game.</i>" % self.players[player_id].cmd_rename)
                 self.players.remove(self.players[player_id])
                 player_id -= 1
 

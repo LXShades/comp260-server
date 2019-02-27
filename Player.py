@@ -26,16 +26,16 @@ class Player:
         self.socket = player_socket
         self.is_connected = True
 
-        self.input_stack = queue.Queue()
-        self.output_stack = queue.Queue()
+        self.input_queue = queue.Queue()
+        self.output_queue = queue.Queue()
 
         # Initialise player commands
         self.commands = {
-            "help": Command("help", Player.help, "Get a list of all usable commands", "help", 0),
-            "look": Command("look", Player.look, "Assess your surroundings", "look", 0),
-            "name": Command("name", Player.name, "Change your name", "name Doodyhead", 1),
-            "say": Command("say", Player.say, "Say something to the current room", "say Hello, I'm a doofhead.", -1),
-            "go": Command("go", Player.go, "<north, east, south, west> Go to another room", "go west", 1)
+            "help": Command("help", Player.cmd_help, "Get a list of all usable commands", "help", 0),
+            "look": Command("look", Player.cmd_look, "Assess your surroundings", "look", 0),
+            "name": Command("name", Player.cmd_rename, "Change your name", "name Doodyhead", 1),
+            "say": Command("say", Player.cmd_say, "Say something to the current room", "say Hello, I'm a doofhead.", -1),
+            "go": Command("go", Player.cmd_go, "<north, east, south, west> Go to another room", "go west", 1)
         }
 
         # Give player a name
@@ -52,38 +52,42 @@ class Player:
         self.output("<+info><i>Type help to view your list of commands.</i><-info>")
 
         # Run the networking threads
-        self.running_input_thread = threading.Thread(daemon=True, target=lambda: self.input_thread())
-        self.running_output_thread = threading.Thread(daemon=True, target=lambda: self.output_thread())
+        self.running_input_thread = threading.Thread(daemon=True, target=lambda: self.recv_thread())
+        self.running_output_thread = threading.Thread(daemon=True, target=lambda: self.send_thread())
         self.running_input_thread.start()
         self.running_output_thread.start()
 
     """Updates the player, flushing all inputs and outputs
-    Returns nothing
     """
     def update(self):
         # Flush inputs
-        while not self.input_stack.empty():
-            self.process_input(self.input_stack.get(False))
+        while not self.input_queue.empty():
+            self.process_input(self.input_queue.get(False))
 
     """Outputs a string to the player
 
-    string: the string to output to the player
-    Returns: nothing
+    Attributes:
+        string: the string to output to the player
     """
     def output(self, string: str):
         # Send the string to the output stack for the next update
-        self.output_stack.put(string, False)
+        self.output_queue.put(string, False)
 
-    """Processes an input from this player
+    """Sends an input to this player. This will be processed during the next update.
     
-    string: the string being input
-    Returns: nothing
+    Attributes:
+        user_input: the string being input
     """
     def input(self, user_input: str):
         # Send the input to the input stack for the next update
-        self.input_stack.put(user_input, False)
+        self.input_queue.put(user_input, False)
 
-    def process_input(self, user_input):
+    """Processes an input in this player. This should not be called except in update(). Call input() instead
+    
+    Attributes:
+        user_input: the input string to process
+    """
+    def process_input(self, user_input: str):
         # Sanitise the input
         user_input = cgi.escape(user_input)
 
@@ -109,6 +113,9 @@ class Player:
 
     """
     Adds a new command to the player's command list
+    
+    Attributes:
+        command: The command to add
     """
     def add_command(self, command: Command):
         # If it doesn't exist, add it to the command dictionary
@@ -116,11 +123,11 @@ class Player:
             self.commands.append(command)
 
     """Displays the room entry message, updated with regard to items, players, etc"""
-    def look(self, parameters: list):
+    def cmd_look(self, parameters: list):
         self.room.on_player_look(self)
 
     """Say something to the entire dungeon"""
-    def say(self, parameters: list):
+    def cmd_say(self, parameters: list):
         if len(parameters) > 0:
             # Reconstruct the speech text from the parameters
             speech = " ".join(parameters)
@@ -133,7 +140,7 @@ class Player:
     """
     Go to another room in the given direction
     """
-    def go(self, parameters: list):
+    def cmd_go(self, parameters: list):
         # Which direction are we going in?
         direction: str = parameters[0].lower()
 
@@ -156,7 +163,7 @@ class Player:
     """
     Changes your name
     """
-    def name(self, parameters: list):
+    def cmd_rename(self, parameters: list):
         # Pick a random message to show after changing the name
         name_message = ""
         randomizer = random.randint(0, 3)
@@ -174,27 +181,27 @@ class Player:
         self.room.dungeon.broadcast("<+event>" + name_message + "<-event>")
 
     """
-    Show the list of available commands
+    Outputs the list of available commands
     """
-    def help(self, parameters: list):
+    def cmd_help(self, parameters: list):
         self.output("You can perform the following commands:")
 
         for command_name, command in self.commands.items():
             self.output("<b><+item>%s:<-item></b> <i>%s</i><br>" % (command_name, command.usage))
 
-    """Generates a player name"""
+    """Generates a player name
+    
+    Returns: The randomly generated player name"""
     @staticmethod
     def generate_name():
-        first = ["Engle", "Beef", "Spork", "Glommuck", "Bligg", "Memni", "Qrech", "Zleeph"]
-        second = ["bork", "stoph", "strom", "rak", "bibble", "ziggy", "worth", "boid"]
+        first = ["Engle", "Beef", "Spork", "Glommuck", "Bligg", "Memni", "Qrech", "Zleeph", "Zimple"]
+        second = ["bork", "stoph", "strom", "rak", "bibble", "ziggy", "worth", "boid", "gloph"]
         third = ["Apostra", "Goven", "Rattler", "Yorky", "Pasta", "Hein", "Yerrel", "Peef"]
         fourth = ["glubber", "slipper", "ribbster", "zonky", "drizzle", "blimey"]
         return random.choice(first) + random.choice(second) + " " + random.choice(third) + random.choice(fourth)
 
-    """
-    Runs the loop used to receive input from this player
-    """
-    def input_thread(self):
+    """Runs the thread used to receive input from this player's client"""
+    def recv_thread(self):
         while self.is_connected:
             # Get the next message from the player
             try:
@@ -208,17 +215,18 @@ class Player:
                 print("Client error, removing client")
                 self.is_connected = False
 
-    """Runs the thread used for networked output to this player"""
-    def output_thread(self):
+    """Runs the thread used for networked output to this player's client"""
+    def send_thread(self):
         while self.is_connected:
             # Output the current messages to the player, if possible
             try:
                 # Send any existing player outputs
-                while not self.output_stack.empty():
-                    self.socket.send(self.output_stack.get(False).encode())
+                while not self.output_queue.empty():
+                    self.socket.send(self.output_queue.get(False).encode())
             except socket.error as error:
+                # Disconnect
                 print("Client error, removing client")
                 self.is_connected = False
 
-            # Wait a sec
+            # Wait a bit
             time.sleep(0.1)

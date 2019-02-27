@@ -11,14 +11,18 @@ from PyQt5.QtCore import *
 
 from Global import Global
 
-'''
+"""
 The client app. Shows client interface and manages interfacing with the server
 
 Attributes:
-    socket: The socket that connects to the server
-'''
-
-
+    is_independent (class attribute): Whether the client is being run independently, or is being spawned as a 
+                                      thread for testing on the server
+    server_socket: The socket that connects to the server
+    is_connected: Whether the server is connected
+    is_closing: Whether the client UI is being closed
+    input_queue: A queue of inputs from the UI
+    output_queue: A queue of outputs to be read by the UI
+"""
 class Client:
     # This is set to false if the client is spawned as a thread by the server
     is_independent = True
@@ -30,37 +34,43 @@ class Client:
 
         # Init vars
         self.server_socket = None
-        self.has_connected = False
+        self.is_connected = False
         self.is_closing = False
 
         # Setup queues
         self.input_queue = queue.Queue()
         self.output_queue = queue.Queue()
 
+        # Run the client!
+        self.run()
+
+    """Runs the main loop. Handles client connection and disconnection until the app is closed"""
+    def run(self):
         # Begin connection loop
-        while self.has_connected is False and self.is_closing is False:
+        while self.is_connected is False and self.is_closing is False:
             try:
                 # Connect to the server
                 self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.server_socket.connect(("127.0.0.1", 6282))
 
                 self.push_output("Connection successful!")
-                self.has_connected = True
+                self.is_connected = True
             except socket.error as error:
                 # Print error (todo: convert to string somehow)
                 self.push_output("Connection error occurred, retrying in 5s (" + str(error) + ")")
                 time.sleep(5)
 
-            if self.has_connected:
+            if self.is_connected:
                 # Startup the send and receive threads
                 threading.Thread(target=Client.send_thread, args=(self,), daemon=True).start()
                 threading.Thread(target=Client.recv_thread, args=(self,), daemon=True).start()
 
-                while self.has_connected is True and self.is_closing is False:
-                    time.sleep(0.1)
+                while self.is_connected is True and self.is_closing is False:
+                    time.sleep(1.0)
 
+    """Sends outstanding player inputs while connected"""
     def send_thread(self):
-        while self.has_connected:
+        while self.is_connected:
             while not self.input_queue.empty():
                 input: str = self.input_queue.get(False)
                 input_as_bytes: bytes = input.encode()
@@ -71,34 +81,45 @@ class Client:
                 except socket.error as error:
                     self.push_output("You have been disconnected from the server due to <i>active reasons</i>.")
                     self.push_output(str(error))
-                    self.has_connected = False
+                    self.is_connected = False
 
             time.sleep(0.1)
 
+    """Receives player outputs from the server while connected"""
     def recv_thread(self):
         # Show all messages received from the server
-        while self.has_connected:
+        while self.is_connected:
             try:
                 data = self.server_socket.recv(1024)
 
                 if len(data) > 0:
                     self.push_output(data.decode("utf-8"))
                 else:
-                    self.has_connected = False
+                    self.is_connected = False
             except socket.error as error:
                 self.push_output("You have been disconnected from the server due to <i>passive reasons</i>.")
                 self.push_output(str(error))
-                self.has_connected = False
+                self.is_connected = False
 
             time.sleep(0.1)
 
-    """Pushes a player input to the queue, to be sent to the server"""
-    def push_input(self, text):
+    """Pushes a player input to the queue, to be sent to the server
+    
+    Attributes:
+        text: the text to send 
+    """
+    def push_input(self, text: str):
         self.input_queue.put(text, False)
 
-    def push_output(self, text):
+    """Pushes a player output to the queue, to be read by the GUI thread
+    
+    Attributes:
+        text: the text received from the server to be output to the player
+    """
+    def push_output(self, text: str):
         self.output_queue.put(text, False)
 
+    """Called when the app window is closed"""
     def on_gui_close(self):
         self.is_closing = True
 
@@ -115,7 +136,7 @@ class GUIThread:
         self.qt_app = QApplication(sys.argv)
 
         # Create main window
-        self.window = MainWindow(self.client)
+        self.window = ClientWindow(self.client)
 
         # Begin the main loop
         self.qt_app.exec_()
@@ -131,7 +152,7 @@ Attributes:
     custom_formatting_spec: A list of custom HTML tags followed by their replacement opening tag and closing tag,
                             respectively.
 """
-class MainWindow(QWidget):
+class ClientWindow(QWidget):
     custom_formatting_spec = [
         "player", "<font color='orange'>", "</font>",
         "item", "<font color='lightblue'>", "</font>",
@@ -180,7 +201,7 @@ class MainWindow(QWidget):
         # Input enter button
         self.enter_button = QPushButton("Enter", self)
         self.enter_button_width = 80
-        self.enter_button.clicked.connect(self.on_input_enter)
+        self.enter_button.clicked.connect(self.on_input_entered)
 
         # Input box
         self.input_box = QLineEdit(self)
@@ -194,16 +215,18 @@ class MainWindow(QWidget):
         # Setup I/O event loop
         self.main_loop = QTimer()
         self.main_loop.timeout.connect(self.on_tick)
-        self.main_loop.start(100)
+        self.main_loop.start(50)
 
+    """Called every timer tick"""
     def on_tick(self):
         # Grab outputs from client and paste onto output box
         while not self.client.output_queue.empty():
             self.output(self.client.output_queue.get(False))
 
-    def on_input_enter(self):
+    """Called when the return key is pressed, or the Enter button clicked"""
+    def on_input_entered(self):
         # Echo the player's input
-        self.output("<+input>> " + self.input_box.text() + "<-input><br>")
+        self.output("<+input>&gt; " + self.input_box.text() + "<-input><br>")
 
         # Send the input to the client class
         self.client.push_input(self.input_box.text())
@@ -211,14 +234,18 @@ class MainWindow(QWidget):
         # Empty the text box
         self.input_box.setText("")
 
+    """Outputs text to the screen. Should not be called externally. Use client.push_output instead
+    
+    Attributes:
+        text: Text to output"""
     def output(self, text: str):
         # Format the custom HTML tags
-        for f in range(0, len(MainWindow.custom_formatting_spec), 3):
+        for f in range(0, len(ClientWindow.custom_formatting_spec), 3):
             # Replace the opening tag
-            text = text.replace("<+" + MainWindow.custom_formatting_spec[f] + ">", MainWindow.custom_formatting_spec[f + 1])
+            text = text.replace("<+" + ClientWindow.custom_formatting_spec[f] + ">", ClientWindow.custom_formatting_spec[f + 1])
 
             # Replace the closing tag
-            text = text.replace("<-" + MainWindow.custom_formatting_spec[f] + ">", MainWindow.custom_formatting_spec[f + 2])
+            text = text.replace("<-" + ClientWindow.custom_formatting_spec[f] + ">", ClientWindow.custom_formatting_spec[f + 2])
 
         # Process additional custom HTML tags for targeting other widgets
         custom_ui_targets = ["<+room_title>", "<-room_title>", self.room_title,
@@ -236,19 +263,22 @@ class MainWindow(QWidget):
                 text = text[0:tag_start] + text[tag_end + len(custom_ui_targets[f + 1]):]
 
         # Present the output only if there's some plaintext output available
-        if MainWindow.text_is_readable(text):
+        if ClientWindow.html_text_is_readable(text):
             # Append HTML to the text. This is a hack, because text is not guaranteed to be interpreted as HTML otherwise...
             self.output_box.append("<a></a>" + text)
 
+    """Returns: Whether an HTML text has non-whitespace, human-readable characters"""
     @staticmethod
-    def text_is_readable(text: str):
+    def html_text_is_readable(text: str):
         return len(re.sub('<[^<]+?>', '', text)) > 0
 
+    """Called by Qt when a key is pressed"""
     def keyPressEvent(self, event):
         # Handle the Enter key as equivalent to clicking Enter button
         if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
-            self.on_input_enter()
+            self.on_input_entered()
 
+    """Called by Qt when the window is resized"""
     def resizeEvent(self, event: QResizeEvent):
         super().resizeEvent(event)
 
