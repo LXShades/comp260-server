@@ -10,7 +10,15 @@ import cgi # for html-escape
 """A player in the game!
 
 Attributes:
-    room: current Room that the player is in
+    name: The name of this player
+    is_connected: Whether this player is connected. If disconnected for a while, this player will be removed.
+    
+    input_queue: Queue for player input. Filled by the recv thread and read by the update thread
+    output_queue: Queue for player output. Filled by self.output, and read by the send thread.
+    
+    commands: List of commands available to this player
+    
+    room: The room this player is currently in
 """
 
 
@@ -18,7 +26,6 @@ class Player:
     """Creates the player in the given room
 
     Parameters:
-        room: The room to spawn in
         player_socket: The connection to this player
     """
     def __init__(self, room: Room, player_socket: socket):
@@ -32,7 +39,7 @@ class Player:
         # Initialise player commands
         self.commands = {
             "help": Command("help", Player.cmd_help, "Get a list of all usable commands", "help", 0),
-            "look": Command("look", Player.cmd_look, "Assess your surroundings", "look", 0),
+            "look": Command("look", Player.cmd_look, "Re-assess your surroundings", "look", 0),
             "name": Command("name", Player.cmd_rename, "Change your name", "name Doodyhead", 1),
             "say": Command("say", Player.cmd_say, "Say something to the current room", "say Hello, I'm a doofhead.", -1),
             "go": Command("go", Player.cmd_go, "<north, east, south, west> Go to another room", "go west", 1)
@@ -49,7 +56,8 @@ class Player:
         self.room = room
         self.room.on_enter(self)
 
-        self.output("<+info><i>Type help to view your list of commands.</i><-info>")
+        self.output("<+info><i>Type <+command>help<-command> to view your list of commands.</i><-info><br>")
+        self.output("<+info><i>Type <+command>look<-command> to re-assess your surroundings.</i><-info><br>")
 
         # Run the networking threads
         self.running_input_thread = threading.Thread(daemon=True, target=lambda: self.recv_thread())
@@ -57,8 +65,7 @@ class Player:
         self.running_input_thread.start()
         self.running_output_thread.start()
 
-    """Updates the player, flushing all inputs and outputs
-    """
+    """Updates the player, flushing all inputs and outputs"""
     def update(self):
         # Flush inputs
         while not self.input_queue.empty():
@@ -93,7 +100,7 @@ class Player:
 
         # Check the command
         parameters: list = user_input.split(" ")
-        command_name: str = parameters[0]
+        command_name: str = parameters[0].lower()
 
         # Find and call the command function
         for command_n, command in self.commands.items():
@@ -124,7 +131,9 @@ class Player:
 
     """Displays the room entry message, updated with regard to items, players, etc"""
     def cmd_look(self, parameters: list):
+        self.output("Refreshing room information...<br>")
         self.room.on_player_look(self)
+        self.output("Done!<br>")
 
     """Say something to the entire dungeon"""
     def cmd_say(self, parameters: list):

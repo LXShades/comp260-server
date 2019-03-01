@@ -53,11 +53,11 @@ class Client:
                 self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.server_socket.connect(("127.0.0.1", 6282))
 
-                self.push_output("Connection successful!")
+                self.push_output("<+info>Connection successful!<-info>")
                 self.is_connected = True
             except socket.error as error:
                 # Print error (todo: convert to string somehow)
-                self.push_output("Connection error occurred, retrying in 5s (" + str(error) + ")")
+                self.push_output("<+info>Connection error occurred, retrying in 5s (" + str(error) + ")<-info>")
                 time.sleep(5)
 
             if self.is_connected:
@@ -79,7 +79,7 @@ class Client:
                     # Send all unsent inputs to the server
                     self.server_socket.send(input_as_bytes)
                 except socket.error as error:
-                    self.push_output("You have been disconnected from the server due to <i>active reasons</i>.")
+                    self.push_output("<+info>You have been disconnected from the server (send error).<-info>")
                     self.push_output(str(error))
                     self.is_connected = False
 
@@ -97,7 +97,7 @@ class Client:
                 else:
                     self.is_connected = False
             except socket.error as error:
-                self.push_output("You have been disconnected from the server due to <i>passive reasons</i>.")
+                self.push_output("<+info>You have been disconnected from the server (receive error).<-info>")
                 self.push_output(str(error))
                 self.is_connected = False
 
@@ -124,6 +124,13 @@ class Client:
         self.is_closing = True
 
 
+"""Class that creates and manages the Qt GUI thread
+
+Attributes:
+    client: A reference to the client that created this
+"""
+
+
 class GUIThread:
     def __init__(self, client: Client):
         self.client = client
@@ -131,6 +138,7 @@ class GUIThread:
         # Run GUI thread
         threading.Thread(target=GUIThread.run, args=(self,), daemon=True).start()
 
+    """Creates the GUI, and calls client.on_gui_close when closed."""
     def run(self):
         # Startup the app
         self.qt_app = QApplication(sys.argv)
@@ -152,6 +160,8 @@ Attributes:
     custom_formatting_spec: A list of custom HTML tags followed by their replacement opening tag and closing tag,
                             respectively.
 """
+
+
 class ClientWindow(QWidget):
     custom_formatting_spec = [
         "player", "<font color='orange'>", "</font>",
@@ -171,7 +181,7 @@ class ClientWindow(QWidget):
         self.client = client
 
         # Setup the window title and dimensions
-        self.title = "MUDdy Beach Cafe"
+        self.title = "Stuck in the MUD"
         self.top = 100
         self.left = 100
         self.width = 640
@@ -193,6 +203,7 @@ class ClientWindow(QWidget):
         self.room_title = QTextEdit(self)
         self.room_title.setText("Room")
         self.room_title.setReadOnly(True)
+        self.room_title.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
         # Room info box
         self.room_info = QTextEdit(self)
@@ -237,7 +248,8 @@ class ClientWindow(QWidget):
     """Outputs text to the screen. Should not be called externally. Use client.push_output instead
     
     Attributes:
-        text: Text to output"""
+        text: Text to output
+    """
     def output(self, text: str):
         # Format the custom HTML tags
         for f in range(0, len(ClientWindow.custom_formatting_spec), 3):
@@ -267,7 +279,12 @@ class ClientWindow(QWidget):
             # Append HTML to the text. This is a hack, because text is not guaranteed to be interpreted as HTML otherwise...
             self.output_box.append("<a></a>" + text)
 
-    """Returns: Whether an HTML text has non-whitespace, human-readable characters"""
+    """
+    Returns whether an HTML text has non-whitespace, human-readable characters
+    
+    Attributes:
+        text: String to test for HTML
+    """
     @staticmethod
     def html_text_is_readable(text: str):
         return len(re.sub('<[^<]+?>', '', text)) > 0

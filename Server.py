@@ -6,6 +6,7 @@ import sys
 Server handles network communications between players and the server
 
 Attributes:
+    game: reference to the game; used to add players
     game_port: the TCP port that the game will run on
     listening_socket: the socket listening for TCP connections
 """
