@@ -35,6 +35,9 @@ class Server:
             print("Could not create server socket. The server could be running already. Shutting down.")
             return
 
+        # Inform the user of successful creation
+        print("Server creation successful! Waiting for players.")
+
         # Listen for connections
         self.listening_socket.listen()
 
