@@ -1,4 +1,10 @@
 # comp260-server
+GitHub URL: http://github.com/LXShades/comp260-server
+
+# Compiling and running
+* To run the server, run **__main__.py**.
+* To run the client, run **Client.py**.
+* A **local client** is available on the server. Comment out the line of code in Game.py to run it.
 
 # Random ideas
 You awaken in a room full of fluffy pink pillows. This must surely be a dream.
