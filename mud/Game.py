@@ -31,7 +31,7 @@ class Game:
 
         # Create a client for the local player (for testing).
         self.do_shutdown = False
-        # self.create_local_client()  # Comment this out unless a test client is desired
+        self.create_local_client()  # Comment this out unless a test client is desired
 
         # Run the game loop
         self.game_loop()

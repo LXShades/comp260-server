@@ -7,6 +7,9 @@ import time
 import queue
 import cgi # for html-escape
 
+# TEMP
+import sqlite3
+
 """A player in the game!
 
 Attributes:
@@ -42,7 +45,9 @@ class Player:
             "look": Command("look", Player.cmd_look, "Re-assess your surroundings", "look", 0),
             "name": Command("name", Player.cmd_rename, "Change your name", "name Doodyhead", 1),
             "say": Command("say", Player.cmd_say, "Say something to the current room", "say Hello, I'm a doofhead.", -1),
-            "go": Command("go", Player.cmd_go, "<north, east, south, west> Go to another room", "go west", 1)
+            "go": Command("go", Player.cmd_go, "<north, east, south, west> Go to another room", "go west", 1),
+            "sql": Command("sql", Player.cmd_sql_test, "Do an SQL test", "sql drop tables; etc", -1),
+            "login": Command("login", Player.cmd_login, "<user name> <password>", "register InsecureUser, letmein", 2)
         }
 
         # Give player a name
@@ -197,6 +202,71 @@ class Player:
 
         for command_name, command in self.commands.items():
             self.output("<b><+item>%s:<-item></b> <i>%s</i><br>" % (command_name, command.usage))
+
+    def cmd_sql_test(self, parameters: list):
+        string = " ".join(parameters)
+
+        # Execute an SQL database thing
+        # Open the database
+        connection = sqlite3.connect("players.db")
+
+        # Grab a database cursor
+        cursor = connection.cursor()
+
+        # Execute some thing on the cursor
+        try:
+            for row in cursor.execute(string):
+                for item in row:
+                    self.output("> " + item + "<br>")
+
+        except sqlite3.Error as err:
+            self.output("SQL error:<br>" + err.args[0])
+
+        # Done!
+        connection.commit()
+
+        # Close the databse
+        connection.close()
+
+    def cmd_login(self, parameters: list):
+        # Connect to SQL
+        connection = sqlite3.connect("players.db")
+
+        # Create the table if it doesn't exist
+        connection.execute("CREATE TABLE IF NOT EXISTS player_accounts(account_name, account_passhash)")
+
+        # If the user does not exist, register them
+        attributes = [cgi.escape(parameters[0]), cgi.escape(parameters[1])]
+
+        try:
+            ret = connection.execute("SELECT account_passhash FROM player_accounts WHERE account_name IS (?)", (attributes[0],))
+            row_info = ret.fetchall()
+
+            if len(row_info) < 1:
+                self.output("User account is not registered! Registering now...<br>")
+
+                try:
+                    # Add the user account to the database
+                    connection.execute("INSERT INTO player_accounts VALUES (?,?)", (attributes[0], attributes[1]))
+                    connection.commit()
+
+                    self.output("Registration successful! You're now a welcomed victim of my dungeon.")
+                except sqlite3.Error as err:
+                    self.output("Exception while registering: " + err.args[0])
+            else:
+                self.output("Logging in...")
+
+                # Check if the password is correct
+                if row_info[0][0] == parameters[1]:
+                    self.output("Password correct! You're totally not a hacker")
+                else:
+                    self.output("Wrong password! You're totally not a good hacker")
+
+        except sqlite3.Error as err:
+            self.output("Exception: " + err.args[0])
+
+        connection.close()
+
 
     """Generates a player name
     
