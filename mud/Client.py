@@ -2,6 +2,7 @@ import queue
 import threading
 import socket
 import time
+import json
 import Dungeon
 
 class Client:
@@ -20,7 +21,7 @@ class Client:
         self.socket = my_socket
 
         # Begin in the initialisation state
-        self.state = Client.STATE_INGAME
+        self.state = Client.STATE_INIT
 
         # Start without a connected player. Client will gain a player once they log in
         self.player = None
@@ -37,9 +38,25 @@ class Client:
 
     """Flushes client inputs, sending them to the connected player if applicable. Called during a game tick"""
     def update(self):
-        if self.player is None:
-            # Temp: Create the player
-            self.player = self.game.add_player(self)
+        if self.state == Client.STATE_INIT:
+            # Send the session ID and packet sequence ID to the player client via JSON
+            client_info = {
+                "session_id": "whohoijrerwasdf",
+                "key": "encryption key and shizzle"
+            }
+
+            self.output_queue.put(json.dumps(client_info))
+            self.output_queue.put("Welcome to the MUD!" +
+                                  "<br>* Type 'login' to log in to an existing account." +
+                                  "<br>* Type 'register' to begin creating an account.<br><br>")
+
+            # Begin login state
+            self.state = Client.STATE_LOGIN
+        elif self.state == Client.STATE_LOGIN:
+            # Process the user's input
+            login_confirmation = {
+                "type": "login_confirmed"
+            }
 
     def try_login(self, username, password):
         self.last_login_attempt_time = time.time()

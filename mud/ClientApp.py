@@ -27,6 +27,10 @@ class ClientApp:
     # This is set to false if the client is spawned as a thread by the server
     is_independent = True
 
+    # Client states
+    STATE_LOGIN = 0
+    STATE_INGAME = 1
+
     """Initialises the client app thread and all sub-threads"""
     def __init__(self):
         # Create the UI
@@ -66,13 +70,11 @@ class ClientApp:
 
         # Begin connection loop
         while self.is_connected is False and self.is_closing is False:
-            server_ip = ""
+            server_ip = "46.101.56.200"
 
-            # Which IP will we connect to?
+            # Try connecting locally first
             if num_connect_attempts == 0:
                 server_ip = self.local_ip
-            else:
-                server_ip = "46.101.56.200"
 
             # Inform the user
             self.push_output("Connecting to %s<br>" % server_ip)
