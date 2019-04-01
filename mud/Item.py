@@ -12,7 +12,7 @@ Attributes:
 
 
 class Item:
-    def __init__(self, name: str, entry_description: str=None):
+    def __init__(self, name, entry_description=None):
         # Initialise variables
         self.name = name
         self.room = None
@@ -29,7 +29,7 @@ class Item:
         command_name: Name of the command
         player: The player trying to use a command
     """
-    def can_use_command(self, command_name: str, player: Player=None):
+    def can_use_command(self, command_name, player=None):
         return command_name in self.commands
 
     """Performs a command on this item
@@ -38,7 +38,7 @@ class Item:
         command_name: Name of the command
         player: The player trying to use the command
     """
-    def do_command(self, command_name: str, player: Player = None):
+    def do_command(self, command_name, player = None):
         pass
 
     """Called when a player quits the game
@@ -46,7 +46,7 @@ class Item:
     Attributes:
         player: The player quitting
     """
-    def on_player_quit(self, player: Player):
+    def on_player_quit(self, player):
         pass
 
     """Called when a player enters the room this item is in
@@ -54,5 +54,5 @@ class Item:
     Attributes:
         player: The player entering the room
     """
-    def on_player_enter(self, player: Player):
+    def on_player_enter(self, player):
         pass

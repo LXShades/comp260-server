@@ -35,6 +35,17 @@ class ClientApp:
         # Init vars
         self.server_socket = None
 
+        # Find the local IP that we'll connect to
+        ip_finder = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+        try:
+            ip_finder.connect(('10.255.255.255', 1))
+            self.local_ip = ip_finder.getsockname()[0]
+        except:
+            self.local_ip = "localhost"
+        finally:
+            ip_finder.close()
+
         # Setup state variables
         self.is_connected = False
         self.is_closing = False
@@ -51,20 +62,40 @@ class ClientApp:
 
     """Runs the main loop. Handles client connection and disconnection until the app is closed"""
     def run(self):
+        num_connect_attempts = 0
+
         # Begin connection loop
         while self.is_connected is False and self.is_closing is False:
+            server_ip = ""
+
+            # Which IP will we connect to?
+            if num_connect_attempts == 0:
+                server_ip = self.local_ip
+            else:
+                server_ip = "46.101.56.200"
+
+            # Inform the user
+            self.push_output("Connecting to %s<br>" % server_ip)
+
+            # Attempt to connect
             try:
                 # Connect to the server
                 self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.server_socket.connect(("127.0.0.1", 6282))
+                self.server_socket.connect((server_ip, 9123))
 
                 self.push_output("<+info>Connection successful!<-info>")
                 self.is_connected = True
             except socket.error as error:
-                # Print error (todo: convert to string somehow)
-                self.push_output("<+info>Connection error occurred, retrying in 5s (" + str(error) + ")<-info>")
-                time.sleep(5)
+                # Print the network error
+                if num_connect_attempts == 0:
+                    self.push_output("<+info>Local server not found, connecting to real server...<-info>")
+                else:
+                    self.push_output("<+info>Connection error occurred, retrying in 5s. (" + str(error) + ")<-info>")
+                    time.sleep(5)
 
+                num_connect_attempts += 1
+
+            # If the connection was successful, begin main loop
             if self.is_connected:
                 # Startup the send and receive threads
                 threading.Thread(target=ClientApp.send_thread, args=(self,), daemon=True).start()
@@ -72,6 +103,9 @@ class ClientApp:
 
                 while self.is_connected is True and self.is_closing is False:
                     time.sleep(1.0)
+
+                # Reset
+                num_connect_attempts = 0
 
     """Sends outstanding player inputs while connected"""
     def send_thread(self):
@@ -114,8 +148,6 @@ class ClientApp:
                 self.push_output("<+info>You have been disconnected from the server (receive error).<-info>")
                 self.push_output(str(error))
                 self.is_connected = False
-
-            time.sleep(0.1)
 
     """Pushes a player input to the queue, to be sent to the server
     

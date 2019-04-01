@@ -90,7 +90,7 @@ class Dungeon:
     Attributes:
         client: The client to be attached to the player
     Returns: The new player"""
-    def add_player(self, client: Client):
+    def add_player(self, client):
         # Create and add the player to the player list
         new_player = Player(self.rooms[self.entry_room], client)
 
@@ -102,7 +102,7 @@ class Dungeon:
     
     Attributes:
         client_socket: The socket of the player joining the dungeon"""
-    def add_client(self, client_socket: socket):
+    def add_client(self, client_socket):
         self.clients.append(Client(self, client_socket))
 
     """Broadcasts a text to all players in the dungeon
@@ -111,7 +111,7 @@ class Dungeon:
         text_to_broadcast: The text to broadcast to the room
         exclude_players: A list of player references to exclude. These players do not receive the broadcast.
     """
-    def broadcast(self, text_to_broadcast: str, exclude_players: list = None):
+    def broadcast(self, text_to_broadcast, exclude_players = None):
         for player in self.players:
             if exclude_players is None or player not in exclude_players:
                 player.output(text_to_broadcast)

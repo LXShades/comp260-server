@@ -12,7 +12,7 @@ Attributes:
 
 
 class Room:
-    def __init__(self, title: str, description: str, connections: dict, items: list=[]):
+    def __init__(self, title, description, connections, items=[]):
         self.title = title
         self.description = description
         self.connections = connections
@@ -24,7 +24,7 @@ class Room:
     Attributes:
         player: The player entering the room
     """
-    def on_enter(self, player: Player):
+    def on_enter(self, player):
         self.broadcast("<+action><+player>%s<-player> entered the room.<-action><br>" % player.name, [player])
         self.on_player_look(player)
 
@@ -38,7 +38,7 @@ class Room:
         player: The player exiting the room
         direction: The direction the player is going in
     """
-    def on_exit(self, player: Player, direction: str):
+    def on_exit(self, player, direction):
         self.broadcast("<+action><+player>%s<-player> went %s<-action><br>" % (player.name, direction), [player])
 
     """Called when a player tries to move in a direction.
@@ -47,7 +47,7 @@ class Room:
         direction: The direction to move in. "north", "south", "east" or "west"
     Returns: If the move was successful, the destination room.
 """
-    def try_go(self, direction: str):
+    def try_go(self, direction):
         if direction in self.connections and self.connections[direction] in self.dungeon.rooms:
             # Return the room at this target
             return self.dungeon.rooms[self.connections[direction]]
@@ -60,7 +60,7 @@ class Room:
     Attributes:
         player: The player looking around
     """
-    def on_player_look(self, player: Player):
+    def on_player_look(self, player):
         # Send the room title
         player.output("<+room_title>" + self.title + "<-room_title>")
 
@@ -82,7 +82,7 @@ class Room:
         player.output(room_info)
 
     """Broadcasts some text to every player in the room"""
-    def broadcast(self, text_to_broadcast: str, exclude_players: list = None):
+    def broadcast(self, text_to_broadcast, exclude_players = None):
         for player in self.dungeon.players:
             # Broadcast to every player in the room, except excluded players
             if player.room is self and (exclude_players is None or player not in exclude_players):

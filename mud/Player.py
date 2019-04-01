@@ -30,7 +30,7 @@ class Player:
         room: The room to start in
         client: The client to attach to the player
     """
-    def __init__(self, room: Room, client: Client):
+    def __init__(self, room, client):
         # Initialise player IO
         self.client = client
 
@@ -70,7 +70,7 @@ class Player:
     Attributes:
         string: the string to output to the player
     """
-    def output(self, string: str):
+    def output(self, string):
         # Send the string to the output stack for the next update
         self.client.output_queue.put(string, False)
 
@@ -79,7 +79,7 @@ class Player:
     Attributes:
         user_input: the string being input
     """
-    def input(self, user_input: str):
+    def input(self, user_input):
         # Send the input to the input stack for the next update
         self.client.input_queue.put(user_input, False)
 
@@ -88,13 +88,13 @@ class Player:
     Attributes:
         user_input: the input string to process
     """
-    def process_input(self, user_input: str):
+    def process_input(self, user_input):
         # Sanitise the input
         user_input = cgi.escape(user_input)
 
         # Check the command
-        parameters: list = user_input.split(" ")
-        command_name: str = parameters[0].lower()
+        parameters = user_input.split(" ")
+        command_name = parameters[0].lower()
 
         # Find and call the command function
         for command_n, command in self.commands.items():
@@ -113,13 +113,13 @@ class Player:
         self.output("Unknown command: %s" % command_name)
 
     """Displays the room entry message, updated with regard to items, players, etc"""
-    def cmd_look(self, parameters: list):
+    def cmd_look(self, parameters):
         self.output("Refreshing room information...<br>")
         self.room.on_player_look(self)
         self.output("Done!<br>")
 
     """Say something to the entire dungeon"""
-    def cmd_say(self, parameters: list):
+    def cmd_say(self, parameters):
         if len(parameters) > 0:
             # Reconstruct the speech text from the parameters
             speech = " ".join(parameters)
@@ -132,9 +132,9 @@ class Player:
     """
     Go to another room in the given direction
     """
-    def cmd_go(self, parameters: list):
+    def cmd_go(self, parameters):
         # Which direction are we going in?
-        direction: str = parameters[0].lower()
+        direction = parameters[0].lower()
 
         # Try and enter the new room
         new_room = self.room.try_go(direction)
@@ -155,7 +155,7 @@ class Player:
     """
     Changes your name
     """
-    def cmd_rename(self, parameters: list):
+    def cmd_rename(self, parameters):
         # Pick a random message to show after changing the name
         name_message = ""
         randomizer = random.randint(0, 3)
@@ -175,13 +175,13 @@ class Player:
     """
     Outputs the list of available commands
     """
-    def cmd_help(self, parameters: list):
+    def cmd_help(self, parameters):
         self.output("You can perform the following commands:")
 
         for command_name, command in self.commands.items():
             self.output("<b><+item>%s:<-item></b> <i>%s</i><br>" % (command_name, command.usage))
 
-    def cmd_sql_test(self, parameters: list):
+    def cmd_sql_test(self, parameters):
         string = " ".join(parameters)
 
         # Execute an SQL database thing
@@ -206,7 +206,7 @@ class Player:
         # Close the databse
         connection.close()
 
-    def cmd_login(self, parameters: list):
+    def cmd_login(self, parameters):
         # Connect to SQL
         connection = sqlite3.connect("players.db")
 

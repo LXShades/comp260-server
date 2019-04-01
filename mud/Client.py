@@ -10,10 +10,11 @@ class Client:
     STATE_LOGIN = 1
     STATE_INGAME = 2
 
-    def __init__(self, game: Dungeon, my_socket: socket):
+    def __init__(self, game, my_socket):
         # Startup!
         self.game = game
         self.is_connected = True
+        self.last_login_attempt_time = 0
 
         # Keep the socket
         self.socket = my_socket
@@ -40,6 +41,8 @@ class Client:
             # Temp: Create the player
             self.player = self.game.add_player(self)
 
+    def try_login(self, username, password):
+        self.last_login_attempt_time = time.time()
 
     """Runs the thread used to receive input from this player's client"""
     def recv_thread(self):

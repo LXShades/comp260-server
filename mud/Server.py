@@ -18,7 +18,7 @@ class Server:
     def __init__(self, game):
         # Initialise vars
         self.game = game
-        self.game_port = 6282
+        self.game_port = 9123
         self.listening_socket = None
 
         # Start the player-accepting thread
@@ -29,8 +29,20 @@ class Server:
         # Setup server socket
         self.listening_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
+        # Bind the server socket
         try:
-            self.listening_socket.bind(("localhost", self.game_port))
+            # Find the primary IP to bind to
+            bind_ip = "localhost"
+            ip_finder = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+            try:
+                ip_finder.connect(('10.255.255.255', 1))
+                bind_ip = ip_finder.getsockname()[0]
+            finally:
+                ip_finder.close()
+
+            # Bind to it
+            self.listening_socket.bind((bind_ip, self.game_port))
         except socket.error as err:
             print("Could not create server socket. The server could be running already. Shutting down.")
             return

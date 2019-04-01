@@ -1,5 +1,5 @@
 class Command:
-    def __init__(self, name: str, func, usage: str, example_usage: str, number_of_parameters: int):
+    def __init__(self, name, func, usage, example_usage, number_of_parameters):
         self.name = name
         self.func = func
         self.usage = usage
