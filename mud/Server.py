@@ -46,7 +46,7 @@ class Server:
             # Accept incoming players
             client_socket, address = self.listening_socket.accept()
 
-            print("Got new connection! Adding player.")
+            print("Got new connection! Adding client.")
 
-            # Create the player
-            self.game.add_player(client_socket)
+            # Create the client
+            self.game.add_client(client_socket)

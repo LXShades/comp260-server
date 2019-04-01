@@ -2,6 +2,7 @@ import socket
 from Room import Room
 from Item import Item
 from Player import Player
+from Client import Client
 
 """A dungeon containing players, and a map of hazardous precarious rooms or 'zones' to survive.
 
@@ -44,7 +45,9 @@ class Dungeon:
         # This is where it all begins
         self.entry_room = "The Foyer"
 
+        # Create player and client list
         self.players = []
+        self.clients = []
 
         # Assign this dungeon to all of the rooms
         for coordinates, room in self.rooms.items():
@@ -56,6 +59,10 @@ class Dungeon:
     Updates all necessary objects, players, etc in the dungeon
     """
     def update(self):
+        # Update clients
+        for client in self.clients:
+            client.update()
+
         # Update room events
         for index, room in self.rooms.items():
             room.update()
@@ -64,19 +71,39 @@ class Dungeon:
         for player in self.players:
             player.update()
 
-        # Remove disconnected players
-        for player_id in range(0, len(self.players)):
-            if not self.players[player_id].is_connected:
-                self.broadcast("<+info>%s has left the game.<-info>" % self.players[player_id].name)
-                self.players.remove(self.players[player_id])
-                player_id -= 1
+        # Remove disconnected clients
+        for client_id in range(0, len(self.clients)):
+            if not self.clients[client_id].is_connected:
+                if self.clients[client_id].player is not None:
+                    # Inform the world that the player is leaving
+                    self.broadcast("<+info>%s has left the game.<-info>" % self.clients[client_id].player.name)
+
+                    # Remove the player from the player list
+                    self.players.remove(self.clients[client_id].player)
+
+                # Remove the client
+                self.clients.remove(self.clients[client_id])
+                client_id -= 1
 
     """Adds a player to the dungeon
     
     Attributes:
-        player_socket: Socket of the player joining the dungeon"""
-    def add_player(self, player_socket: socket):
-        self.players.append(Player(self.rooms[self.entry_room], player_socket))
+        client: The client to be attached to the player
+    Returns: The new player"""
+    def add_player(self, client: Client):
+        # Create and add the player to the player list
+        new_player = Player(self.rooms[self.entry_room], client)
+
+        self.players.append(new_player)
+
+        return new_player
+
+    """Adds a client to the dungeon
+    
+    Attributes:
+        client_socket: The socket of the player joining the dungeon"""
+    def add_client(self, client_socket: socket):
+        self.clients.append(Client(self, client_socket))
 
     """Broadcasts a text to all players in the dungeon
     

@@ -1,11 +1,8 @@
+import random
+import cgi # for html-escape
+from Client import Client
 import Room
 from Command import Command
-import threading
-import socket
-import random
-import time
-import queue
-import cgi # for html-escape
 
 # TEMP
 import sqlite3
@@ -15,7 +12,7 @@ import bcrypt
 
 Attributes:
     name: The name of this player
-    is_connected: Whether this player is connected. If disconnected for a while, this player will be removed.
+    client: The Client attached to this player. This should not be None
     
     input_queue: Queue for player input. Filled by the recv thread and read by the update thread
     output_queue: Queue for player output. Filled by self.output, and read by the send thread.
@@ -30,15 +27,12 @@ class Player:
     """Creates the player in the given room
 
     Parameters:
-        player_socket: The connection to this player
+        room: The room to start in
+        client: The client to attach to the player
     """
-    def __init__(self, room: Room, player_socket: socket):
+    def __init__(self, room: Room, client: Client):
         # Initialise player IO
-        self.socket = player_socket
-        self.is_connected = True
-
-        self.input_queue = queue.Queue()
-        self.output_queue = queue.Queue()
+        self.client = client
 
         # Initialise player commands
         self.commands = {
@@ -65,17 +59,11 @@ class Player:
         self.output("<+info><i>Type <+command>help<-command> to view your list of commands.</i><-info><br>")
         self.output("<+info><i>Type <+command>look<-command> to re-assess your surroundings.</i><-info><br>")
 
-        # Run the networking threads
-        self.running_input_thread = threading.Thread(daemon=True, target=lambda: self.recv_thread())
-        self.running_output_thread = threading.Thread(daemon=True, target=lambda: self.send_thread())
-        self.running_input_thread.start()
-        self.running_output_thread.start()
-
     """Updates the player, flushing all inputs and outputs"""
     def update(self):
         # Flush inputs
-        while not self.input_queue.empty():
-            self.process_input(self.input_queue.get(False))
+        while not self.client.input_queue.empty():
+            self.process_input(self.client.input_queue.get(False))
 
     """Outputs a string to the player
 
@@ -84,7 +72,7 @@ class Player:
     """
     def output(self, string: str):
         # Send the string to the output stack for the next update
-        self.output_queue.put(string, False)
+        self.client.output_queue.put(string, False)
 
     """Sends an input to this player. This will be processed during the next update.
     
@@ -93,7 +81,7 @@ class Player:
     """
     def input(self, user_input: str):
         # Send the input to the input stack for the next update
-        self.input_queue.put(user_input, False)
+        self.client.input_queue.put(user_input, False)
 
     """Processes an input in this player. This should not be called except in update(). Call input() instead
     
@@ -123,17 +111,6 @@ class Player:
 
         # Or the command didn't exist
         self.output("Unknown command: %s" % command_name)
-
-    """
-    Adds a new command to the player's command list
-    
-    Attributes:
-        command: The command to add
-    """
-    def add_command(self, command: Command):
-        # If it doesn't exist, add it to the command dictionary
-        if command.name not in self.commands:
-            self.commands.append(command)
 
     """Displays the room entry message, updated with regard to items, players, etc"""
     def cmd_look(self, parameters: list):
@@ -285,41 +262,12 @@ class Player:
         fourth = ["glubber", "slipper", "ribbster", "zonky", "drizzle", "blimey"]
         return random.choice(first) + random.choice(second) + " " + random.choice(third) + random.choice(fourth)
 
-    """Runs the thread used to receive input from this player's client"""
-    def recv_thread(self):
-        while self.is_connected:
-            # Get the next message from the player
-            try:
-                # Get message size
-                data_header = self.socket.recv(2)
+    """Saves the player's state to the database"""
+    def save_state(self):
+        # Todo
+        pass
 
-                # Get message contents
-                data = self.socket.recv(int.from_bytes(data_header, 'little'))
-
-                if len(data) > 0:
-                    self.input(data.decode("utf-8"))
-                else:
-                    self.is_connected = False
-            except socket.error as error:
-                print("Client error, removing client")
-                self.is_connected = False
-
-    """Runs the thread used for networked output to this player's client"""
-    def send_thread(self):
-        while self.is_connected:
-            # Output the current messages to the player, if possible
-            try:
-                # Send any existing player outputs
-                while not self.output_queue.empty():
-                    output = self.output_queue.get(False).encode()
-                    output_size = len(output)
-
-                    # Send message size and data
-                    self.socket.send(len(output).to_bytes(2, 'little') + output)
-            except socket.error as error:
-                # Disconnect
-                print("Client error, removing client")
-                self.is_connected = False
-
-            # Wait a bit
-            time.sleep(0.1)
+    """Loads the player's state from the database"""
+    def load_state(self):
+        # Todo
+        pass
