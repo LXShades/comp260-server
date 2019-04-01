@@ -9,6 +9,7 @@ import cgi # for html-escape
 
 # TEMP
 import sqlite3
+import bcrypt
 
 """A player in the game!
 
@@ -233,13 +234,15 @@ class Player:
         connection = sqlite3.connect("players.db")
 
         # Create the table if it doesn't exist
-        connection.execute("CREATE TABLE IF NOT EXISTS player_accounts(account_name, account_passhash)")
+        connection.execute("CREATE TABLE IF NOT EXISTS player_accounts(account_name, account_passhash, account_salt)")
 
         # If the user does not exist, register them
-        attributes = [cgi.escape(parameters[0]), cgi.escape(parameters[1])]
+        username = parameters[0]
+        local_salt = bcrypt.gensalt(12)
+        password_hash = bcrypt.hashpw(parameters[1].encode("utf-8"), local_salt)
 
         try:
-            ret = connection.execute("SELECT account_passhash FROM player_accounts WHERE account_name IS (?)", (attributes[0],))
+            ret = connection.execute("SELECT (account_passhash, account_salt) FROM player_accounts WHERE account_name IS (?)", (username,))
             row_info = ret.fetchall()
 
             if len(row_info) < 1:
@@ -247,7 +250,10 @@ class Player:
 
                 try:
                     # Add the user account to the database
-                    connection.execute("INSERT INTO player_accounts VALUES (?,?)", (attributes[0], attributes[1]))
+                    # Rehash the password???
+                    password_hash = bcrypt.hashpw(password_hash, bcrypt.gensalt(12))
+
+                    connection.execute("INSERT INTO player_accounts VALUES (?,?)", (username, password_hash))
                     connection.commit()
 
                     self.output("Registration successful! You're now a welcomed victim of my dungeon.")
@@ -257,7 +263,7 @@ class Player:
                 self.output("Logging in...")
 
                 # Check if the password is correct
-                if row_info[0][0] == parameters[1]:
+                if bcrypt.checkpw(password_hash, row_info[0][0]):
                     self.output("Password correct! You're totally not a hacker")
                 else:
                     self.output("Wrong password! You're totally not a good hacker")
@@ -284,7 +290,11 @@ class Player:
         while self.is_connected:
             # Get the next message from the player
             try:
-                data = self.socket.recv(1024)
+                # Get message size
+                data_header = self.socket.recv(2)
+
+                # Get message contents
+                data = self.socket.recv(int.from_bytes(data_header, 'little'))
 
                 if len(data) > 0:
                     self.input(data.decode("utf-8"))
@@ -301,7 +311,11 @@ class Player:
             try:
                 # Send any existing player outputs
                 while not self.output_queue.empty():
-                    self.socket.send(self.output_queue.get(False).encode())
+                    output = self.output_queue.get(False).encode()
+                    output_size = len(output)
+
+                    # Send message size and data
+                    self.socket.send(len(output).to_bytes(2, 'little') + output)
             except socket.error as error:
                 # Disconnect
                 print("Client error, removing client")

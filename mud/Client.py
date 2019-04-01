@@ -77,7 +77,11 @@ class Client:
 
                 try:
                     # Send all unsent inputs to the server
-                    self.server_socket.send(input_as_bytes)
+                    # Send the size of the message in bytes first
+                    header = len(input_as_bytes).to_bytes(2, 'little')
+
+                    # Send message as a size-data pair
+                    self.server_socket.send(header + input_as_bytes)
                 except socket.error as error:
                     self.push_output("<+info>You have been disconnected from the server (send error).<-info>")
                     self.push_output(str(error))
@@ -90,8 +94,13 @@ class Client:
         # Show all messages received from the server
         while self.is_connected:
             try:
-                data = self.server_socket.recv(1024)
+                # Receive the size of the next message
+                data_header = int.from_bytes(self.server_socket.recv(2), 'little')
 
+                # Receive the message
+                data = self.server_socket.recv(data_header)
+
+                # Output the message
                 if len(data) > 0:
                     self.push_output(data.decode("utf-8"))
                 else:
