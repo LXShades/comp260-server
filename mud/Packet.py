@@ -16,15 +16,21 @@ class Packet:
         encryption_key: the key to encrypt the data with
     """
     @staticmethod
-    def pack(data, encryption_key):
-        iv = get_random_bytes(AES.block_size)
-        cipher = AES.new(encryption_key, AES.MODE_CBC, iv)
-        packet = {
-            "iv": base64.b64encode(iv).decode("utf-8"),
-            "data": base64.b64encode(cipher.encrypt(pad(data, AES.block_size))).decode("utf-8")
-        }
+    def pack(data, encryption_key, session_id, packet_id):
+        try:
+            iv = get_random_bytes(AES.block_size)
+            cipher = AES.new(encryption_key, AES.MODE_CBC, iv)
+            packet = {
+                "iv": base64.b64encode(iv).decode("utf-8"),
+                "data": base64.b64encode(cipher.encrypt(pad(data, AES.block_size))).decode("utf-8"),
+                "packet": packet_id,
+                "session": session_id
+            }
 
-        return json.dumps(packet).encode()
+            return json.dumps(packet).encode()
+        except err as Exception:
+            # Error encrypting packet
+            return None
 
     """Unpacks a packet and returns its data as bytes
     
@@ -32,10 +38,14 @@ class Packet:
         data: The unencrypted packet data
         decryption_key: The key to decrypt the data with"""
     @staticmethod
-    def unpack(data, decryption_key):
+    def unpack(data, decryption_key, session_id, packet_id):
         try:
             # Reconstruct the packet
             packet = json.loads(data.decode("utf-8"))
+
+            # Verify the message
+            if packet["packet"] != packet_id or packet["session"] != session_id:
+                return None
 
             # Decrypt the message
             iv = base64.b64decode(packet["iv"])

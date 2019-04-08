@@ -4,6 +4,7 @@ import socket
 import time
 import json
 import base64
+import random
 from Crypto.Random import get_random_bytes
 from Packet import Packet
 import Dungeon
@@ -32,7 +33,7 @@ class Client:
         # Init networking variables
         self.session_id = Client.total_num_sessions
         self.encryption_key = get_random_bytes(16)
-        self.packet_id = 0
+        self.packet_id = random.randint(0, 1000)
         Client.total_num_sessions += 1
 
         # Start without a connected player. Client will gain a player once they log in
@@ -85,21 +86,26 @@ class Client:
 
                 if len(packet) == data_header:
                     # Decrypt packet
-                    data = Packet.unpack(packet, self.encryption_key)
+                    data = Packet.unpack(packet, self.encryption_key, self.session_id, self.packet_id)
+                    self.packet_id += 1
 
-                    if self.state == Client.STATE_INIT:
-                        # Check that the player has sent a valid join request
-                        pass
+                    if data is not None:
+                        if self.state == Client.STATE_INIT:
+                            # Check that the player has sent a valid join request
+                            pass
 
-                    if self.state == Client.STATE_INGAME:
-                        # Receive a player command
-                        self.player.input(data.decode("utf-8"))
+                        if self.state == Client.STATE_INGAME:
+                            # Receive a player command
+                            self.player.input(data.decode("utf-8"))
+                    else:
+                        print("Invalid packet received -- removing client")
+                        self.is_connected = False    # I'm just glad
                 else:
-                    print("Partial message received, removing client?")
-                    self.is_connected = False
+                    print("Partial message received -- removing client")
+                    self.is_connected = False        # we aren't being
             except socket.error as error:
                 print("Client error, removing client")
-                self.is_connected = False
+                self.is_connected = False            # marked on maintainability
 
     """Runs the thread used for networked output to this player's client"""
     def send_thread(self):
@@ -128,7 +134,7 @@ class Client:
                     output = self.output_queue.get(False)
 
                     # Package this message
-                    packet_packaged = Packet.pack(output, self.encryption_key)
+                    packet_packaged = Packet.pack(output, self.encryption_key, self.session_id, 0)
 
                     # Send the message
                     self.socket.send(len(packet_packaged).to_bytes(2, 'little') + packet_packaged)

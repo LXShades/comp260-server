@@ -62,7 +62,7 @@ class ClientApp:
 
         # Declare empty network variables
         self.session_id = "none"
-        self.packet_id = -1
+        self.packet_id = 0
         self.encryption_key = b""
 
         # Setup queues
@@ -128,13 +128,11 @@ class ClientApp:
 
                 try:
                     # Send all unsent inputs to the server
-                    packet = Packet.pack(player_input, self.encryption_key)
-
-                    # Send the size of the message in bytes first
-                    header = len(packet).to_bytes(2, "little")
+                    packet = Packet.pack(player_input, self.encryption_key, self.session_id, self.packet_id)
+                    self.packet_id += 1
 
                     # Send message as a size-data pair
-                    self.server_socket.send(header + packet)
+                    self.server_socket.send(len(packet).to_bytes(2, "little") + packet)
                 except socket.error as error:
                     self.push_output("<+info>You have been disconnected from the server (send error).<-info>")
                     self.push_output(str(error))
@@ -188,7 +186,7 @@ class ClientApp:
         elif self.state == ClientApp.STATE_LOGIN:
             try:
                 # Reconstruct the packet
-                data = Packet.unpack(message, self.encryption_key).decode("utf-8")
+                data = Packet.unpack(message, self.encryption_key, self.session_id, 0).decode("utf-8")
 
                 # Whoa we got something
                 self.push_output(data)
