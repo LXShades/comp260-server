@@ -7,15 +7,11 @@ import re
 import json
 import base64
 
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad
-from Crypto.Util.Padding import unpad
-from Crypto.Random import get_random_bytes
-
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 
+from Packet import Packet
 from Global import Global
 
 """
@@ -128,16 +124,17 @@ class ClientApp:
     def send_thread(self):
         while self.is_connected:
             while not self.input_queue.empty():
-                input = self.input_queue.get(False)
-                input_as_bytes = input.encode()
+                player_input = self.input_queue.get(False).encode()
 
                 try:
                     # Send all unsent inputs to the server
+                    packet = Packet.pack(player_input, self.encryption_key)
+
                     # Send the size of the message in bytes first
-                    header = len(input_as_bytes).to_bytes(2, "little")
+                    header = len(packet).to_bytes(2, "little")
 
                     # Send message as a size-data pair
-                    self.server_socket.send(header + input_as_bytes)
+                    self.server_socket.send(header + packet)
                 except socket.error as error:
                     self.push_output("<+info>You have been disconnected from the server (send error).<-info>")
                     self.push_output(str(error))
@@ -191,14 +188,7 @@ class ClientApp:
         elif self.state == ClientApp.STATE_LOGIN:
             try:
                 # Reconstruct the packet
-                packet = json.loads(message.decode("utf-8"))
-
-                # Decrypt the message
-                iv = base64.b64decode(packet["iv"])
-                data = base64.b64decode(packet["data"])
-                cipher = AES.new(self.encryption_key, AES.MODE_CBC, iv)
-                data = cipher.decrypt(data)
-                data = unpad(data, AES.block_size).decode("utf-8")
+                data = Packet.unpack(message, self.encryption_key).decode("utf-8")
 
                 # Whoa we got something
                 self.push_output(data)

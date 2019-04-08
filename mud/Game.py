@@ -18,24 +18,6 @@ Attributes:
 """
 
 
-"""
-Notes from Apr 1st session
-header = len(testString).to_bytes(2, byteorder='little')
-
-size = int.from_bytes(mySocket.recv(2), 'little')
-
-json.loads
-json.encode - JSON data can be used for room headers, etc
-
-sendDictionary = {
-	test: "wow"
-}
-jsonPacket = json.dumps(dictionary)
-json.encode()
-
-
-recvDictionary = json.loads(payloadData)"""
-
 class Game:
     def __init__(self):
         # Init vars

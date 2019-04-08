@@ -4,10 +4,8 @@ import socket
 import time
 import json
 import base64
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad
-from Crypto.Util.Padding import unpad
 from Crypto.Random import get_random_bytes
+from Packet import Packet
 import Dungeon
 
 class Client:
@@ -81,13 +79,14 @@ class Client:
         while self.is_connected:
             # Get the next message from the player
             try:
-                # Get message size
+                # Get next message
                 data_header = int.from_bytes(self.socket.recv(2), "little")
+                packet = self.socket.recv(data_header, socket.MSG_WAITALL)
 
-                # Get message contents
-                data = self.socket.recv(data_header, socket.MSG_WAITALL)
+                if len(packet) == data_header:
+                    # Decrypt packet
+                    data = Packet.unpack(packet, self.encryption_key)
 
-                if len(data) == data_header:
                     if self.state == Client.STATE_INIT:
                         # Check that the player has sent a valid join request
                         pass
@@ -129,20 +128,10 @@ class Client:
                     output = self.output_queue.get(False)
 
                     # Package this message
-                    iv = get_random_bytes(AES.block_size)
-                    cipher = AES.new(self.encryption_key, AES.MODE_CBC, iv)
-                    packet = {
-                        "packet_id": self.packet_id,
-                        "iv": base64.b64encode(iv).decode("utf-8"),
-                        "data": base64.b64encode(cipher.encrypt(pad(output, AES.block_size))).decode("utf-8")
-                    }
-                    packet_packaged = json.dumps(packet).encode()
-                    packet_size = len(packet_packaged)
-
-                    self.packet_id += 1
+                    packet_packaged = Packet.pack(output, self.encryption_key)
 
                     # Send the message
-                    self.socket.send(packet_size.to_bytes(2, 'little') + packet_packaged)
+                    self.socket.send(len(packet_packaged).to_bytes(2, 'little') + packet_packaged)
             except socket.error as error:
                 # Disconnect
                 print("Client error, removing client")
