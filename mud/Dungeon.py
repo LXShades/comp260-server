@@ -3,6 +3,7 @@ from Room import Room
 from Item import Item
 from Player import Player
 from Client import Client
+import queue
 
 """A dungeon containing players, and a map of hazardous precarious rooms or 'zones' to survive.
 
@@ -48,6 +49,7 @@ class Dungeon:
         # Create player and client list
         self.players = []
         self.clients = []
+        self.incoming_clients = queue.Queue()
 
         # Assign this dungeon to all of the rooms
         for coordinates, room in self.rooms.items():
@@ -59,6 +61,10 @@ class Dungeon:
     Updates all necessary objects, players, etc in the dungeon
     """
     def update(self):
+        # Add new queued clients
+        while not self.incoming_clients.empty():
+            self.clients.append(self.incoming_clients.get(False))
+
         # Update clients
         for client in self.clients:
             client.update()
@@ -72,7 +78,8 @@ class Dungeon:
             player.update()
 
         # Remove disconnected clients
-        for client_id in range(0, len(self.clients)):
+        client_id = 0
+        while client_id < len(self.clients):
             if not self.clients[client_id].is_connected:
                 if self.clients[client_id].player is not None:
                     # Inform the world that the player is leaving
@@ -83,7 +90,8 @@ class Dungeon:
 
                 # Remove the client
                 self.clients.remove(self.clients[client_id])
-                client_id -= 1
+            else:
+                client_id += 1
 
     """Adds a player to the dungeon
     
@@ -98,12 +106,12 @@ class Dungeon:
 
         return new_player
 
-    """Adds a client to the dungeon
+    """Adds a new client to the dungeon. Thread-safe
     
     Attributes:
         client_socket: The socket of the player joining the dungeon"""
     def add_client(self, client_socket):
-        self.clients.append(Client(self, client_socket))
+        self.incoming_clients.put(Client(self, client_socket))
 
     """Broadcasts a text to all players in the dungeon
     

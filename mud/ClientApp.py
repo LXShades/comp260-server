@@ -4,6 +4,13 @@ import threading
 import time
 import queue
 import re
+import json
+import base64
+
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
+from Crypto.Util.Padding import unpad
+from Crypto.Random import get_random_bytes
 
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
@@ -28,8 +35,10 @@ class ClientApp:
     is_independent = True
 
     # Client states
-    STATE_LOGIN = 0
-    STATE_INGAME = 1
+    STATE_OFFLINE = 0
+    STATE_CONNECTED = 1
+    STATE_LOGIN = 2
+    STATE_INGAME = 3
 
     """Initialises the client app thread and all sub-threads"""
     def __init__(self):
@@ -37,6 +46,7 @@ class ClientApp:
         self.gui = GUIThread(self)
 
         # Init vars
+        self.state = ClientApp.STATE_OFFLINE
         self.server_socket = None
 
         # Find the local IP that we'll connect to
@@ -54,8 +64,10 @@ class ClientApp:
         self.is_connected = False
         self.is_closing = False
 
-        self.session_id = ""
-        self.packet_id = ""
+        # Declare empty network variables
+        self.session_id = "none"
+        self.packet_id = -1
+        self.encryption_key = b""
 
         # Setup queues
         self.input_queue = queue.Queue()
@@ -99,6 +111,9 @@ class ClientApp:
 
             # If the connection was successful, begin main loop
             if self.is_connected:
+                # Initialise states
+                self.state = ClientApp.STATE_CONNECTED
+
                 # Startup the send and receive threads
                 threading.Thread(target=ClientApp.send_thread, args=(self,), daemon=True).start()
                 threading.Thread(target=ClientApp.recv_thread, args=(self,), daemon=True).start()
@@ -113,13 +128,13 @@ class ClientApp:
     def send_thread(self):
         while self.is_connected:
             while not self.input_queue.empty():
-                input: str = self.input_queue.get(False)
-                input_as_bytes: bytes = input.encode()
+                input = self.input_queue.get(False)
+                input_as_bytes = input.encode()
 
                 try:
                     # Send all unsent inputs to the server
                     # Send the size of the message in bytes first
-                    header = len(input_as_bytes).to_bytes(2, 'little')
+                    header = len(input_as_bytes).to_bytes(2, "little")
 
                     # Send message as a size-data pair
                     self.server_socket.send(header + input_as_bytes)
@@ -132,23 +147,63 @@ class ClientApp:
 
     """Receives player outputs from the server while connected"""
     def recv_thread(self):
+        # Receive initial encryption key, etc
+
         # Show all messages received from the server
         while self.is_connected:
             try:
                 # Receive the size of the next message
                 data_header = int.from_bytes(self.server_socket.recv(2), 'little')
 
-                # Receive the message
-                data = self.server_socket.recv(data_header)
+                # Receive the entire message
+                data = self.server_socket.recv(data_header, socket.MSG_WAITALL)
 
                 # Output the message
-                if len(data) > 0:
-                    self.push_output(data.decode("utf-8"))
+                if len(data) == data_header:
+                    self.process_message(data)
                 else:
+                    self.push_output("Partial message received! Disconnecting")
                     self.is_connected = False
             except socket.error as error:
                 self.push_output("<+info>You have been disconnected from the server (receive error).<-info>")
                 self.push_output(str(error))
+                self.is_connected = False
+
+    """Processes a message received from the server"""
+    def process_message(self, message):
+        # Server states:
+        # connected: send session ID, encryption key, packet ID, etc to user
+        # login: send and receive user password
+        if self.state == ClientApp.STATE_CONNECTED:
+            init_data = json.loads(message)
+
+            try:
+                # Collect networking/encryption settings
+                self.encryption_key = base64.b64decode(init_data["encryption_key"])
+                self.session_id = init_data["session_id"]
+                self.packet_id = init_data["packet_id"]
+
+                # Advance to the login state
+                self.state = ClientApp.STATE_LOGIN
+            except:
+                self.push_output("<+info>Error establishing connection to server. Disconnecting.<-info>")
+                self.is_connected = False
+        elif self.state == ClientApp.STATE_LOGIN:
+            try:
+                # Reconstruct the packet
+                packet = json.loads(message.decode("utf-8"))
+
+                # Decrypt the message
+                iv = base64.b64decode(packet["iv"])
+                data = base64.b64decode(packet["data"])
+                cipher = AES.new(self.encryption_key, AES.MODE_CBC, iv)
+                data = cipher.decrypt(data)
+                data = unpad(data, AES.block_size).decode("utf-8")
+
+                # Whoa we got something
+                self.push_output(data)
+            except:
+                self.push_output("<+info>Error processing server message<-info>")
                 self.is_connected = False
 
     """Pushes a player input to the queue, to be sent to the server

@@ -1,5 +1,6 @@
+import queue
 import random
-import cgi # for html-escape
+import cgi  # for html-escape
 from Client import Client
 import Room
 from Command import Command
@@ -34,6 +35,8 @@ class Player:
         # Initialise player IO
         self.client = client
 
+        self.input_queue = queue.Queue()
+
         # Initialise player commands
         self.commands = {
             "help": Command("help", Player.cmd_help, "Get a list of all usable commands", "help", 0),
@@ -62,8 +65,8 @@ class Player:
     """Updates the player, flushing all inputs and outputs"""
     def update(self):
         # Flush inputs
-        while not self.client.input_queue.empty():
-            self.process_input(self.client.input_queue.get(False))
+        while not self.input_queue.empty():
+            self.process_input(self.input_queue.get(False))
 
     """Outputs a string to the player
 
@@ -72,7 +75,7 @@ class Player:
     """
     def output(self, string):
         # Send the string to the output stack for the next update
-        self.client.output_queue.put(string, False)
+        self.client.output_text(string)
 
     """Sends an input to this player. This will be processed during the next update.
     
@@ -81,7 +84,7 @@ class Player:
     """
     def input(self, user_input):
         # Send the input to the input stack for the next update
-        self.client.input_queue.put(user_input, False)
+        self.input_queue.put(user_input, False)
 
     """Processes an input in this player. This should not be called except in update(). Call input() instead
     

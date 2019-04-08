@@ -3,9 +3,17 @@ import threading
 import socket
 import time
 import json
+import base64
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
+from Crypto.Util.Padding import unpad
+from Crypto.Random import get_random_bytes
 import Dungeon
 
 class Client:
+    # Global number of sessions (incremental, ensuring unique session for each player)
+    total_num_sessions = 0
+
     # Player states
     STATE_INIT = 0
     STATE_LOGIN = 1
@@ -23,11 +31,16 @@ class Client:
         # Begin in the initialisation state
         self.state = Client.STATE_INIT
 
+        # Init networking variables
+        self.session_id = Client.total_num_sessions
+        self.encryption_key = get_random_bytes(16)
+        self.packet_id = 0
+        Client.total_num_sessions += 1
+
         # Start without a connected player. Client will gain a player once they log in
         self.player = None
 
         # Create the IO queues
-        self.input_queue = queue.Queue()
         self.output_queue = queue.Queue()
 
         # Run the networking threads
@@ -39,27 +52,29 @@ class Client:
     """Flushes client inputs, sending them to the connected player if applicable. Called during a game tick"""
     def update(self):
         if self.state == Client.STATE_INIT:
-            # Send the session ID and packet sequence ID to the player client via JSON
-            client_info = {
-                "session_id": "whohoijrerwasdf",
-                "key": "encryption key and shizzle"
-            }
-
-            self.output_queue.put(json.dumps(client_info))
-            self.output_queue.put("Welcome to the MUD!" +
+            self.output_text("Welcome to the MUD!" +
                                   "<br>* Type 'login' to log in to an existing account." +
                                   "<br>* Type 'register' to begin creating an account.<br><br>")
 
             # Begin login state
-            self.state = Client.STATE_LOGIN
+            self.state = Client.STATE_INGAME
+
+            # Temp: Create our player!
+            self.player = self.game.add_player(self)
         elif self.state == Client.STATE_LOGIN:
             # Process the user's input
             login_confirmation = {
                 "type": "login_confirmed"
             }
 
+    """User login attempt??"""
     def try_login(self, username, password):
         self.last_login_attempt_time = time.time()
+
+    """Outputs a string to the client"""
+    def output_text(self, string):
+        # Send this as an encrypted packet
+        self.output_queue.put(string.encode(), False)
 
     """Runs the thread used to receive input from this player's client"""
     def recv_thread(self):
@@ -67,13 +82,12 @@ class Client:
             # Get the next message from the player
             try:
                 # Get message size
-                data_header = self.socket.recv(2)
+                data_header = int.from_bytes(self.socket.recv(2), "little")
 
                 # Get message contents
-                data = self.socket.recv(int.from_bytes(data_header, 'little'))
+                data = self.socket.recv(data_header, socket.MSG_WAITALL)
 
-                # Todo: Check state, etc
-                if len(data) > 0:
+                if len(data) == data_header:
                     if self.state == Client.STATE_INIT:
                         # Check that the player has sent a valid join request
                         pass
@@ -82,6 +96,7 @@ class Client:
                         # Receive a player command
                         self.player.input(data.decode("utf-8"))
                 else:
+                    print("Partial message received, removing client?")
                     self.is_connected = False
             except socket.error as error:
                 print("Client error, removing client")
@@ -89,16 +104,45 @@ class Client:
 
     """Runs the thread used for networked output to this player's client"""
     def send_thread(self):
+        # Send the encryption info and session/packet ID to the player client
+        client_info = {
+            "session_id": self.session_id,
+            "packet_id": self.packet_id,
+            "encryption_key": base64.b64encode(self.encryption_key).decode("utf-8"),
+            "bacon_key": base64.b64encode(get_random_bytes(16)).decode("utf-8")
+            # this is bacon. it actually does nothing, it just runs on the theory that a hacker
+            # would, under his assumption that he is being fooled, prefer to grab the bacon instead of the key
+            # it also gives the appearance of some voodoo extra-strong encryption power
+            # overall, a hacker needs food too and I respect that
+        }
+        initial_packet_packaged = json.dumps(client_info).encode()
+
+        self.socket.send(len(initial_packet_packaged).to_bytes(2, 'little') + initial_packet_packaged)
+
+        # Begin the main message send loop
         while self.is_connected:
             # Output the current messages to the player, if possible
             try:
                 # Send any existing player outputs
                 while not self.output_queue.empty():
-                    output = self.output_queue.get(False).encode()
-                    output_size = len(output)
+                    # Find next message to send
+                    output = self.output_queue.get(False)
 
-                    # Send message size and data
-                    self.socket.send(output_size.to_bytes(2, 'little') + output)
+                    # Package this message
+                    iv = get_random_bytes(AES.block_size)
+                    cipher = AES.new(self.encryption_key, AES.MODE_CBC, iv)
+                    packet = {
+                        "packet_id": self.packet_id,
+                        "iv": base64.b64encode(iv).decode("utf-8"),
+                        "data": base64.b64encode(cipher.encrypt(pad(output, AES.block_size))).decode("utf-8")
+                    }
+                    packet_packaged = json.dumps(packet).encode()
+                    packet_size = len(packet_packaged)
+
+                    self.packet_id += 1
+
+                    # Send the message
+                    self.socket.send(packet_size.to_bytes(2, 'little') + packet_packaged)
             except socket.error as error:
                 # Disconnect
                 print("Client error, removing client")
