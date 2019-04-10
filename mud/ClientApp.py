@@ -6,6 +6,7 @@ import queue
 import re
 import json
 import base64
+import bcrypt
 
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
@@ -33,8 +34,9 @@ class ClientApp:
     # Client states
     STATE_OFFLINE = 0
     STATE_CONNECTED = 1
-    STATE_LOGIN = 2
-    STATE_INGAME = 3
+    STATE_AUTHENTICATION = 2
+    STATE_AWAITING_PASSWORD = 3
+    STATE_INGAME = 4
 
     """Initialises the client app thread and all sub-threads"""
     def __init__(self):
@@ -64,6 +66,9 @@ class ClientApp:
         self.session_id = "none"
         self.packet_id = 0
         self.encryption_key = b""
+
+        # Declare empty accounting variables
+        self.password_salt = b""
 
         # Setup queues
         self.input_queue = queue.Queue()
@@ -117,8 +122,75 @@ class ClientApp:
                 while self.is_connected is True and self.is_closing is False:
                     time.sleep(1.0)
 
-                # Reset
+                # Reset the client
                 num_connect_attempts = 0
+                self.session_id = 0
+                self.packet_id = 0
+                self.encryption_key = b""
+                self.password_salt = b""
+                self.server_socket = None
+
+    """Processes a message received from the server"""
+    def process_message(self, message):
+        # Get message info
+        try:
+            # Unpack the message
+            if self.encryption_key != b"":
+                message_data = json.loads(Packet.unpack(message, self.encryption_key, self.session_id, self.packet_id).decode("utf-8"))
+            else:
+                message_data = json.loads(message.decode("utf-8"))
+
+            message_type = message_data["type"]
+        except:
+            self.push_output("<+info>Invalid message received from the server. Disconnecting.<-info>")
+            self.is_connected = False
+            return
+
+        # Process the actual message
+        if message_type == "security":
+            try:
+                # Collect networking/encryption settings
+                self.encryption_key = base64.b64decode(message_data["encryption_key"])
+                self.session_id = message_data["session_id"]
+                self.packet_id = message_data["packet_id"]
+            except:
+                self.push_output("<+info>Error establishing connection to server. Disconnecting.<-info>")
+                self.is_connected = False
+        elif message_type == "output":
+            try:
+                self.push_output(message_data["text"])
+            except:
+                self.push_output("<+info>Invalid output received from the server. Disconnecting.<-info>")
+                self.is_connected = False
+        elif message_type == "salt":
+            try:
+                self.password_salt = message_data["salt"].encode()
+
+                # Server is probably waiting for our password
+                self.state = ClientApp.STATE_AWAITING_PASSWORD
+            except:
+                self.push_output("<+info>Server's sending weird stuff. Disconnecting.<-info>")
+                self.is_connected = False
+
+    """Pushes a player input to the queue, to be sent to the server
+
+    Attributes:
+        text: the text to send
+    """
+    def process_input(self, text: str):
+        if self.state == ClientApp.STATE_AWAITING_PASSWORD:
+            self.push_output("<+info>Sending password...<-info>")
+
+            # Hash the entered password
+            hashed_password = bcrypt.hashpw(text.encode(), self.password_salt).decode("utf-8")
+
+            # Send the hashed password to the server
+            self.input_queue.put(hashed_password)
+
+            # Send the hashed password and return to the previous state
+            self.state = ClientApp.STATE_AUTHENTICATION
+        else:
+            self.input_queue.put(text, False)
 
     """Sends outstanding player inputs while connected"""
     def send_thread(self):
@@ -163,44 +235,6 @@ class ClientApp:
                 self.push_output("<+info>You have been disconnected from the server (receive error).<-info>")
                 self.push_output(str(error))
                 self.is_connected = False
-
-    """Processes a message received from the server"""
-    def process_message(self, message):
-        # Server states:
-        # connected: send session ID, encryption key, packet ID, etc to user
-        # login: send and receive user password
-        if self.state == ClientApp.STATE_CONNECTED:
-            init_data = json.loads(message)
-
-            try:
-                # Collect networking/encryption settings
-                self.encryption_key = base64.b64decode(init_data["encryption_key"])
-                self.session_id = init_data["session_id"]
-                self.packet_id = init_data["packet_id"]
-
-                # Advance to the login state
-                self.state = ClientApp.STATE_LOGIN
-            except:
-                self.push_output("<+info>Error establishing connection to server. Disconnecting.<-info>")
-                self.is_connected = False
-        elif self.state == ClientApp.STATE_LOGIN:
-            try:
-                # Reconstruct the packet
-                data = Packet.unpack(message, self.encryption_key, self.session_id, 0).decode("utf-8")
-
-                # Whoa we got something
-                self.push_output(data)
-            except:
-                self.push_output("<+info>Error processing server message<-info>")
-                self.is_connected = False
-
-    """Pushes a player input to the queue, to be sent to the server
-    
-    Attributes:
-        text: the text to send 
-    """
-    def push_input(self, text: str):
-        self.input_queue.put(text, False)
 
     """Pushes a player output to the queue, to be read by the GUI thread
     
@@ -263,6 +297,7 @@ class ClientWindow(QWidget):
         "action", "<font color='yellow'><i>", "</i></font>",
         "event", "<font color='white'><i>", "</i></font>",
         "info", "<i>", "</i>",
+        "error", "<font color='#a00000'><i>", "</i></font>"
     ]
 
     def __init__(self, client: ClientApp):
@@ -327,11 +362,15 @@ class ClientWindow(QWidget):
 
     """Called when the return key is pressed, or the Enter button clicked"""
     def on_input_entered(self):
-        # Echo the player's input
-        self.output("<+input>&gt; " + self.input_box.text() + "<-input><br>")
+        if self.client.state != ClientApp.STATE_AWAITING_PASSWORD:
+            # Echo the player's input
+            self.output("<+input>&gt; " + self.input_box.text() + "<-input><br>")
+        else:
+            # Echo a blind input
+            self.output("<+input>&gt; ****<-input>")
 
         # Send the input to the client class
-        self.client.push_input(self.input_box.text())
+        self.client.process_input(self.input_box.text())
 
         # Empty the text box
         self.input_box.setText("")

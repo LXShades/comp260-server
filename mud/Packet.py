@@ -28,8 +28,9 @@ class Packet:
             }
 
             return json.dumps(packet).encode()
-        except err as Exception:
+        except Exception as err:
             # Error encrypting packet
+            print("Encryption error: " + err.args[0])
             return None
 
     """Unpacks a packet and returns its data as bytes

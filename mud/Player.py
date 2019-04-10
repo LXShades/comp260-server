@@ -7,7 +7,6 @@ from Command import Command
 
 # TEMP
 import sqlite3
-import bcrypt
 
 """A player in the game!
 
@@ -45,7 +44,6 @@ class Player:
             "say": Command("say", Player.cmd_say, "Say something to the current room", "say Hello, I'm a doofhead.", -1),
             "go": Command("go", Player.cmd_go, "<north, east, south, west> Go to another room", "go west", 1),
             "sql": Command("sql", Player.cmd_sql_test, "Do an SQL test", "sql drop tables; etc", -1),
-            "login": Command("login", Player.cmd_login, "<user name> <password>", "register InsecureUser, letmein", 2)
         }
 
         # Give player a name
@@ -182,7 +180,7 @@ class Player:
         self.output("You can perform the following commands:")
 
         for command_name, command in self.commands.items():
-            self.output("<b><+item>%s:<-item></b> <i>%s</i><br>" % (command_name, command.usage))
+            self.output("<b><+item>%s:<-item></b> <i>%s</i>" % (command_name, command.usage))
 
     def cmd_sql_test(self, parameters):
         string = " ".join(parameters)
@@ -198,7 +196,7 @@ class Player:
         try:
             for row in cursor.execute(string):
                 for item in row:
-                    self.output("> " + item + "<br>")
+                    self.output("> " + item.decode("utf-8"))
 
         except sqlite3.Error as err:
             self.output("SQL error:<br>" + err.args[0])
@@ -206,53 +204,8 @@ class Player:
         # Done!
         connection.commit()
 
-        # Close the databse
+        # Close the database
         connection.close()
-
-    def cmd_login(self, parameters):
-        # Connect to SQL
-        connection = sqlite3.connect("players.db")
-
-        # Create the table if it doesn't exist
-        connection.execute("CREATE TABLE IF NOT EXISTS player_accounts(account_name, account_passhash, account_salt)")
-
-        # If the user does not exist, register them
-        username = parameters[0]
-        local_salt = bcrypt.gensalt(12)
-        password_hash = bcrypt.hashpw(parameters[1].encode("utf-8"), local_salt)
-
-        try:
-            ret = connection.execute("SELECT (account_passhash, account_salt) FROM player_accounts WHERE account_name IS (?)", (username,))
-            row_info = ret.fetchall()
-
-            if len(row_info) < 1:
-                self.output("User account is not registered! Registering now...<br>")
-
-                try:
-                    # Add the user account to the database
-                    # Rehash the password???
-                    password_hash = bcrypt.hashpw(password_hash, bcrypt.gensalt(12))
-
-                    connection.execute("INSERT INTO player_accounts VALUES (?,?)", (username, password_hash))
-                    connection.commit()
-
-                    self.output("Registration successful! You're now a welcomed victim of my dungeon.")
-                except sqlite3.Error as err:
-                    self.output("Exception while registering: " + err.args[0])
-            else:
-                self.output("Logging in...")
-
-                # Check if the password is correct
-                if bcrypt.checkpw(password_hash, row_info[0][0]):
-                    self.output("Password correct! You're totally not a hacker")
-                else:
-                    self.output("Wrong password! You're totally not a good hacker")
-
-        except sqlite3.Error as err:
-            self.output("Exception: " + err.args[0])
-
-        connection.close()
-
 
     """Generates a player name
     
