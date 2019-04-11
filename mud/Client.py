@@ -68,27 +68,25 @@ class Client:
             # Begin login state
             self.state = Client.STATE_AUTHENTICATION
 
-    """Returns the encoded password salt for a user account, or a random salt if the account doesn't exist"""
-    def get_user_salt(self, username):
-        connection = sqlite3.connect("players.db")
+    """Sets the client state"""
+    def set_state(self, new_state):
+        # Don't change anything if we're already in the given state
+        if self.state == new_state:
+            return
 
-        try:
-            # Create the table if it doesn't exist (todo: do this on init)
-            connection.execute("CREATE TABLE IF NOT EXISTS player_accounts(name, passhash, salt)")
+        if new_state == Client.STATE_INGAME:
+            # Create the player
+            self.player = self.game.add_player(self)
+        elif self.state == Client.STATE_INGAME:
+            # Remove the player, later
+            pass
 
-            # Get the salt for this user
-            cursor = connection.execute("SELECT (salt) FROM player_accounts WHERE name IS (?)", (username,))
-            values = cursor.fetchall()
+        self.state = new_state
 
-            if len(values) == 0:
-                # Account doesn't exist, but send a random salt anyway
-                return bcrypt.gensalt(12)
-            else:
-                return values[0][0]
-
-        except sqlite3.Error as err:
-            self.output_text("Exception getting salt: " + err.args[0])
-
+    """Handles user input during gameplay"""
+    def process_ingame_input(self, input):
+        # Send the command to the player
+        self.player.input(input)
 
     """Handle user input during registering state"""
     def process_authentication_input(self, input):
@@ -117,14 +115,11 @@ class Client:
         if self.try_register(self.account_name, input):
             # We're done, enter the game!
             self.output_text("<+info>Registration complete! Welcome to the game!<-info>")
-            self.state = Client.STATE_INGAME
-
-            # Enter our player!
-            self.player = self.game.add_player(self)
+            self.set_state(Client.STATE_INGAME)
         else:
             # Failed, return to authentication
             self.output_text("<+error>Unknown error registering your account. Please try again.<-error>")
-            self.state = Client.STATE_AUTHENTICATION
+            self.set_state(Client.STATE_AUTHENTICATION)
 
     def process_login_input(self, input):
         self.output_text("<+info>Logging in...<-info>")
@@ -133,14 +128,11 @@ class Client:
         if self.try_login(self.account_name, input):
             # We're in!
             self.output_text("<+info>Welcome back, %s!<-info>" % self.account_name)
-            self.state = Client.STATE_INGAME
-
-            # Enter our player!
-            self.player = self.game.add_player(self)
+            self.set_state(Client.STATE_INGAME)
         else:
             # Failed, return to authentication
             self.output_text("<+error>Wrong username or password. Please try again.<-error>")
-            self.state = Client.STATE_AUTHENTICATION
+            self.set_state(Client.STATE_AUTHENTICATION)
         # Deja vu? This code looks very familiar...................
 
     def try_register(self, username, password):
@@ -170,7 +162,7 @@ class Client:
                     self.output_text("<+info>Welcome aboard, %s! Please type a password:<-info>" % username)
 
                     # Advance to the next state
-                    self.state = Client.STATE_REGISTERING
+                    self.set_state(Client.STATE_REGISTERING)
 
                 elif self.state == Client.STATE_REGISTERING:
                     # We should have a password now
@@ -180,6 +172,7 @@ class Client:
                         connection.commit()
                         connection.close()
 
+                        # Registratino successful!
                         return True
                     else:
                         self.output_text("Invalid password. Please type another.")
@@ -207,20 +200,29 @@ class Client:
                 self.output_text("<+info>Please type your password:<-info>")
 
                 # Advance to logging in state
-                self.state = Client.STATE_LOGGING_IN
+                self.set_state(Client.STATE_LOGGING_IN)
 
             elif self.state == Client.STATE_LOGGING_IN:
+                # Get the password hash from the account database
                 ret = connection.execute("SELECT (passhash) FROM player_accounts WHERE name IS (?)", (username,))
                 row_info = ret.fetchall()
 
+                connection.close()
+
                 # Ensure the account exists
                 if len(row_info) < 1:
-                    connection.close()
                     return False
 
-                # Ensure the password is correct
-                connection.close()
-                return row_info[0][0] == password
+                # Check the password
+                is_password_correct = row_info[0][0] == password
+
+                # Ensure the account isn't already logged in
+                if is_password_correct:
+                    if len([player for player in self.game.players if player.client.account_name == self.account_name]) > 0:
+                        return False
+
+                # Login was successful!
+                return True
 
         except sqlite3.Error as err:
             self.output_text("Exception: " + err.args[0])
@@ -247,6 +249,28 @@ class Client:
 
         self.output_queue.put(json.dumps(packet_data).encode(), False)
 
+        """Returns the encoded password salt for a user account, or a random salt if the account doesn't exist"""
+
+    def get_user_salt(self, username):
+        connection = sqlite3.connect("players.db")
+
+        try:
+            # Create the table if it doesn't exist (todo: do this on init)
+            connection.execute("CREATE TABLE IF NOT EXISTS player_accounts(name, passhash, salt)")
+
+            # Get the salt for this user
+            cursor = connection.execute("SELECT (salt) FROM player_accounts WHERE name IS (?)", (username,))
+            values = cursor.fetchall()
+
+            if len(values) == 0:
+                # Account doesn't exist, but send a random salt anyway
+                return bcrypt.gensalt(12)
+            else:
+                return values[0][0]
+
+        except sqlite3.Error as err:
+            self.output_text("Exception getting salt: " + err.args[0])
+
     """Runs the thread used to receive input from this player's client"""
     def recv_thread(self):
         while self.is_connected:
@@ -263,12 +287,9 @@ class Client:
 
                     if data is not None:
                         if self.state == Client.STATE_INIT:
-                            # Check that the player has sent a valid join request
                             pass
-
                         if self.state == Client.STATE_INGAME:
-                            # Receive a player command
-                            self.player.input(data.decode("utf-8"))
+                            self.process_ingame_input(data.decode("utf-8"))
                         elif self.state == Client.STATE_AUTHENTICATION:
                             self.process_authentication_input(data.decode("utf-8"))
                         elif self.state == Client.STATE_REGISTERING:

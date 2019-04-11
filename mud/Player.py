@@ -57,8 +57,8 @@ class Player:
         self.room = room
         self.room.on_enter(self)
 
-        self.output("<+info><i>Type <+command>help<-command> to view your list of commands.</i><-info><br>")
-        self.output("<+info><i>Type <+command>look<-command> to re-assess your surroundings.</i><-info><br>")
+        self.output("<+info><i>Type <+command>help<-command> to view your list of commands.</i><-info>")
+        self.output("<+info><i>Type <+command>look<-command> to re-assess your surroundings.</i><-info>")
 
     """Updates the player, flushing all inputs and outputs"""
     def update(self):
