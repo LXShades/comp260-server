@@ -55,6 +55,7 @@ class Player:
 
         # Spawn in the given room
         self.room = room
+        self.output("<i>You enter <+room>%s<-room></i>" % self.room.title)
         self.room.on_enter(self)
 
         self.output("<+info><i>Type <+command>help<-command> to view your list of commands.</i><-info>")
@@ -146,7 +147,7 @@ class Player:
 
             # Into the new room!
             self.room = new_room
-            self.output("<i>You enter <+room>%s</-room></i>" % self.room.title)
+            self.output("<i>You enter <+room>%s<-room></i>" % self.room.title)
 
             # Enter the new room
             new_room.on_enter(self)

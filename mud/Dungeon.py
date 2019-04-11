@@ -3,7 +3,11 @@ from Room import Room
 from Item import Item
 from Player import Player
 from Client import Client
+from Database import Database
+
 import queue
+import json
+import sqlite3
 
 """A dungeon containing players, and a map of hazardous precarious rooms or 'zones' to survive.
 
@@ -43,8 +47,26 @@ class Dungeon:
             )
         }
 
-        # This is where it all begins
-        self.entry_room = "The Foyer"
+        # Load the rooms from the database
+        cursor = Database.room_db.execute("SELECT * FROM rooms")
+        room_list = cursor.fetchall()
+
+        self.rooms = {}
+
+        for index, room in enumerate(room_list):
+            try:
+                self.rooms[room[0]] = Room(room[0], room[1], json.loads(room[2]))
+            except:
+                print("Warning: Exception occurred while processing room at index %s. Please verify the data." % str(index))
+                if len(room) > 0 and type(room[0]) == str:
+                    print("Room name: " + room[0])
+
+        # Use the first room in the database as the entry room
+        if len(room_list) > 0:
+            self.entry_room = room_list[0][0]
+        else:
+            self.entry_room = ""
+            print("Uh, server manager sir/ma'am... there aren't any rooms in this dungeon... I'm gonna continue anyway but this isn't cool OK?")
 
         # Create player and client list
         self.players = []
@@ -99,6 +121,12 @@ class Dungeon:
         client: The client to be attached to the player
     Returns: The new player"""
     def add_player(self, client):
+        # Load the player information from the player database
+        cursor = Database.player_db.execute("SELECT (last_room) FROM players WHERE account_name IS (?)", (client.account_name,))
+
+        if len(cursor) < 1:
+            # Add the player to the database
+
         # Create and add the player to the player list
         new_player = Player(self.rooms[self.entry_room], client)
 

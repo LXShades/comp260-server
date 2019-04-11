@@ -7,7 +7,7 @@ import base64
 import random
 from Crypto.Random import get_random_bytes
 from Packet import Packet
-import Dungeon
+from Database import Database
 
 import sqlite3
 import bcrypt
@@ -50,6 +50,7 @@ class Client:
         self.player = None
 
         # Create the IO queues
+        self.input_queue = queue.Queue()
         self.output_queue = queue.Queue()
 
         # Run the networking threads
@@ -60,6 +61,21 @@ class Client:
 
     """Flushes client inputs, sending them to the connected player if applicable. Called during a game tick"""
     def update(self):
+        # Process client inputs
+        while not self.input_queue.empty():
+            input = self.input_queue.get(False)
+
+            if self.state == Client.STATE_INIT:
+                pass
+            if self.state == Client.STATE_INGAME:
+                self.process_ingame_input(input)
+            elif self.state == Client.STATE_AUTHENTICATION:
+                self.process_authentication_input(input)
+            elif self.state == Client.STATE_REGISTERING:
+                self.process_registering_input(input)
+            elif self.state == Client.STATE_LOGGING_IN:
+                self.process_login_input(input)
+
         if self.state == Client.STATE_INIT:
             self.output_text("Welcome to the MUD!" +
                                   "<br>* Type 'login' to log in to an existing account." +
@@ -136,21 +152,13 @@ class Client:
         # Deja vu? This code looks very familiar...................
 
     def try_register(self, username, password):
-        # Make sure the account doesn't already exist
-        # Connect to SQL
-        connection = sqlite3.connect("players.db")
-
         try:
-            # Create the table if it doesn't exist (todo: do this on init)
-            connection.execute("CREATE TABLE IF NOT EXISTS player_accounts(name, passhash, salt)")
-
             # Ensure the username doesn't already exist
-            cursor = connection.execute("SELECT (1) FROM player_accounts WHERE name IS (?)", (username,))
+            cursor = Database.account_db.execute("SELECT (1) FROM player_accounts WHERE name IS (?)", (username,))
             values = cursor.fetchall()
 
             if len(values) > 0:
                 self.output_text("<+error>This account already exists.<-error>")
-                connection.close()
                 return False
             else:
                 if self.state == Client.STATE_AUTHENTICATION:
@@ -168,28 +176,20 @@ class Client:
                     # We should have a password now
                     if password != None and len(password) > 0:
                         # Add the account to the database
-                        connection.execute("INSERT INTO player_accounts VALUES (?,?,?)", (username, password, self.account_salt))
-                        connection.commit()
-                        connection.close()
+                        Database.account_db.execute("INSERT INTO player_accounts VALUES (?,?,?)", (username, password, self.account_salt))
+                        Database.account_db.commit()
 
-                        # Registratino successful!
+                        # Registration successful!
                         return True
                     else:
                         self.output_text("Invalid password. Please type another.")
         except sqlite3.Error as err:
             self.output_text("SQL exception: " + err.args[0])
 
-        connection.close()
         return False
 
     """Tries to log the user in"""
     def try_login(self, username, password):
-        # Connect to SQL
-        connection = sqlite3.connect("players.db")
-
-        # Create the table if it doesn't exist (todo: do this on init)
-        connection.execute("CREATE TABLE IF NOT EXISTS player_accounts(name, passhash, salt)")
-
         try:
             if self.state == Client.STATE_AUTHENTICATION:
                 # Request the password
@@ -204,10 +204,8 @@ class Client:
 
             elif self.state == Client.STATE_LOGGING_IN:
                 # Get the password hash from the account database
-                ret = connection.execute("SELECT (passhash) FROM player_accounts WHERE name IS (?)", (username,))
+                ret = Database.account_db.execute("SELECT (passhash) FROM player_accounts WHERE name IS (?)", (username,))
                 row_info = ret.fetchall()
-
-                connection.close()
 
                 # Ensure the account exists
                 if len(row_info) < 1:
@@ -220,14 +218,15 @@ class Client:
                 if is_password_correct:
                     if len([player for player in self.game.players if player.client.account_name == self.account_name]) > 0:
                         return False
+                else:
+                    return False
 
                 # Login was successful!
                 return True
 
         except sqlite3.Error as err:
-            self.output_text("Exception: " + err.args[0])
+            self.output_text("SQL Exception: " + err.args[0])
 
-        connection.close()
         return False
 
     """Outputs a string to the client"""
@@ -252,14 +251,9 @@ class Client:
         """Returns the encoded password salt for a user account, or a random salt if the account doesn't exist"""
 
     def get_user_salt(self, username):
-        connection = sqlite3.connect("players.db")
-
         try:
-            # Create the table if it doesn't exist (todo: do this on init)
-            connection.execute("CREATE TABLE IF NOT EXISTS player_accounts(name, passhash, salt)")
-
             # Get the salt for this user
-            cursor = connection.execute("SELECT (salt) FROM player_accounts WHERE name IS (?)", (username,))
+            cursor = Database.account_db.execute("SELECT (salt) FROM player_accounts WHERE name IS (?)", (username,))
             values = cursor.fetchall()
 
             if len(values) == 0:
@@ -286,16 +280,7 @@ class Client:
                     self.packet_id += 1
 
                     if data is not None:
-                        if self.state == Client.STATE_INIT:
-                            pass
-                        if self.state == Client.STATE_INGAME:
-                            self.process_ingame_input(data.decode("utf-8"))
-                        elif self.state == Client.STATE_AUTHENTICATION:
-                            self.process_authentication_input(data.decode("utf-8"))
-                        elif self.state == Client.STATE_REGISTERING:
-                            self.process_registering_input(data.decode("utf-8"))
-                        elif self.state == Client.STATE_LOGGING_IN:
-                            self.process_login_input(data.decode("utf-8"))
+                        self.input_queue.put(data.decode("utf-8"))
                     else:
                         print("Invalid packet received -- removing client")
                         self.is_connected = False    # I'm just glad

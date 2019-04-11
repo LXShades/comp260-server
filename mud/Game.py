@@ -6,6 +6,7 @@ from Player import Player
 from Room import Room
 from Server import Server
 from Global import Global
+from Database import Database
 
 """The game! This is where everything runs.
 
@@ -23,6 +24,9 @@ class Game:
         # Init vars
         Global.is_server = True  # Used for local client spawning
 
+        # Initialise the database system
+        Database.startup()
+
         # Create the dungeon
         self.dungeon = Dungeon()
 
@@ -35,6 +39,9 @@ class Game:
 
         # Run the game loop
         self.game_loop()
+
+        # Shut down the database
+        Database.shutdown()
 
     """The main game loop. This updates the dungeons and all player events"""
     def game_loop(self):
