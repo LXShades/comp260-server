@@ -108,6 +108,7 @@ class Dungeon:
                     self.broadcast("<+info>%s has left the game.<-info>" % self.clients[client_id].player.name)
 
                     # Remove the player from the player list
+                    self.clients[client_id].player.destroy()
                     self.players.remove(self.clients[client_id].player)
 
                 # Remove the client
@@ -121,14 +122,8 @@ class Dungeon:
         client: The client to be attached to the player
     Returns: The new player"""
     def add_player(self, client):
-        # Load the player information from the player database
-        cursor = Database.player_db.execute("SELECT (last_room) FROM players WHERE account_name IS (?)", (client.account_name,))
-
-        if len(cursor) < 1:
-            # Add the player to the database
-
         # Create and add the player to the player list
-        new_player = Player(self.rooms[self.entry_room], client)
+        new_player = Player(self, client)
 
         self.players.append(new_player)
 

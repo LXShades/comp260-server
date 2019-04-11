@@ -4,6 +4,7 @@ import cgi  # for html-escape
 from Client import Client
 import Room
 from Command import Command
+from Database import Database
 
 # TEMP
 import sqlite3
@@ -30,9 +31,10 @@ class Player:
         room: The room to start in
         client: The client to attach to the player
     """
-    def __init__(self, room, client):
+    def __init__(self, dungeon, client):
         # Initialise player IO
         self.client = client
+        self.dungeon = dungeon
 
         self.input_queue = queue.Queue()
 
@@ -46,20 +48,38 @@ class Player:
             "sql": Command("sql", Player.cmd_sql_test, "Do an SQL test", "sql drop tables; etc", -1),
         }
 
-        # Give player a name
-        self.name = Player.generate_name()
-        room.dungeon.broadcast("<i><font color='green'><+player>%s<-player> has entered the game!</font></i>" % self.name)
+        # Load player state from the database
+        cursor = Database.player_db.execute("SELECT last_room, character_name FROM players WHERE account_name IS (?)", (client.account_name,))
+        values = cursor.fetchall()
+        starting_room = dungeon.entry_room
+
+        if len(values) > 0:
+            starting_room = values[0][0]
+            self.name = values[0][1]
+        else:
+            # Add the new player to the database
+            Database.player_db.execute("INSERT INTO players (account_name, character_name, last_room) VALUES (?, ?, ?)",
+                                       (self.client.account_name, self.name, dungeon.entry_room))
+            # Give the player a name
+            self.name = Player.generate_name()
+
+        # Broadcast entry message
+        self.dungeon.broadcast("<i><font color='green'><+player>%s<-player> has entered the game!</font></i>" % self.name)
 
         # Output an initial message to the player
         self.output("<+event>You awaken into this world as <+player>%s.<-player><-event>" % self.name)
 
         # Spawn in the given room
-        self.room = room
+        self.room = dungeon.rooms[starting_room]
         self.output("<i>You enter <+room>%s<-room></i>" % self.room.title)
         self.room.on_enter(self)
 
         self.output("<+info><i>Type <+command>help<-command> to view your list of commands.</i><-info>")
         self.output("<+info><i>Type <+command>look<-command> to re-assess your surroundings.</i><-info>")
+
+    """Destroys the player, saving progress"""
+    def destroy(self):
+        Database.player_db.execute("UPDATE players SET last_room = (?) WHERE account_name IS (?)", (self.room.title, self.client.account_name))
 
     """Updates the player, flushing all inputs and outputs"""
     def update(self):
@@ -140,7 +160,7 @@ class Player:
 
         # Try and enter the new room
         new_room = self.room.try_go(direction)
-
+        
         if new_room is not None:
             # Leave the current room
             self.room.on_exit(self, direction)
