@@ -6,19 +6,18 @@ import Player
 Attributes:
     name: Name of the item
     entry_description: The item description given to players when they enter the room
-    commands: A list of object commands which can be used on this object by players. [To be implemented]
+    commands: A dictionary of commands, along with the default text to be shown when the command is used.
+              If there is an on_%s implementation on the object, where %s is the command name, it will be called.
     
 """
 
 
 class Item:
-    def __init__(self, name, entry_description=None):
+    def __init__(self, name, entry_description=None, commands={}):
         # Initialise variables
         self.name = name
         self.room = None
-
-        # A map of all commands which can be used on this object
-        self.commands = {}
+        self.commands = commands
 
         # The description when the player enters the room
         self.entry_description = entry_description
@@ -39,7 +38,11 @@ class Item:
         player: The player trying to use the command
     """
     def do_command(self, command_name, player = None):
-        pass
+        if hasattr(self, "on_%s" % command_name):
+            # Print command message
+            getattr(self, "on_%s" % command_name)
+            return True
+        return False
 
     """Called when a player quits the game
     

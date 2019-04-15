@@ -21,32 +21,6 @@ Attributes:
 
 class Dungeon:
     def __init__(self):
-        # Create the rooms
-        self.rooms = {
-            "The Foyer": Room(
-                "The Foyer",
-                "Welcome to the bustling foyer!<br><br>* The bathroom is west.<br>* The library is north.",
-                {"west": "The bathroom", "north": "The library"}
-            ),
-
-            "The bathroom": Room(
-                "The bathroom",
-                "You enter the bathroom with a solemn heart. It smells like toilet, and looks like toilets.<br>" +
-                "The only pleasant sight here is the mirror on the wall; rather, the face within it.<br><br>" +
-                "You look beautiful today.<br><br>" +
-                "* The foyer is east.<br>",
-                {"east": "The Foyer"},
-            ),
-
-            "The library": Room(
-                "The library",
-                "This room appears to be some sort of ancient, physical website. It's filled with reliable sources.<br><br>" +
-                "* The foyer is south.<br>",
-                {"south": "The Foyer"},
-                [Item("Book", "There is an open <+item>book<-item> sitting in the corner.")]
-            )
-        }
-
         # Load the rooms from the database
         cursor = Database.room_db.execute("SELECT * FROM rooms")
         room_list = cursor.fetchall()
@@ -55,11 +29,21 @@ class Dungeon:
 
         for index, room in enumerate(room_list):
             try:
-                self.rooms[room[0]] = Room(room[0], room[1], json.loads(room[2]))
-            except:
+                # Add the new room
+                self.rooms[room[0]] = Room(room[0], room[1], Database.read_json(room[2]))
+
+                # Load the items
+                if room[3] is not None:
+                    items = Database.read_json(room[3])
+                    for item in items:
+                        if Database.item_definitions[item] is not None:
+                            self.rooms[room[0]].items.append(Database.item_definitions[item])
+
+            except Exception as err:
                 print("Warning: Exception occurred while processing room at index %s. Please verify the data." % str(index))
                 if len(room) > 0 and type(room[0]) == str:
                     print("Room name: " + room[0])
+                print("Exception: " + err.args[0])
 
         # Use the first room in the database as the entry room
         if len(room_list) > 0:
@@ -115,6 +99,12 @@ class Dungeon:
                 self.clients.remove(self.clients[client_id])
             else:
                 client_id += 1
+
+    """Destroys the dungeon and saves all players"""
+    def destroy(self):
+        for client in self.clients:
+            if client.player is not None:
+                client.player.destroy()
 
     """Adds a player to the dungeon
     

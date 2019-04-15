@@ -79,7 +79,14 @@ class Player:
 
     """Destroys the player, saving progress"""
     def destroy(self):
-        Database.player_db.execute("UPDATE players SET last_room = (?) WHERE account_name IS (?)", (self.room.title, self.client.account_name))
+        # Save your data (todo: check EU compliance)
+        Database.player_db.execute("""
+            UPDATE players
+            SET last_room = (?),
+                character_name = (?)
+                
+            WHERE account_name IS (?)""",
+            (self.room.title, self.name, self.client.account_name))
 
     """Updates the player, flushing all inputs and outputs"""
     def update(self):
@@ -160,7 +167,7 @@ class Player:
 
         # Try and enter the new room
         new_room = self.room.try_go(direction)
-        
+
         if new_room is not None:
             # Leave the current room
             self.room.on_exit(self, direction)

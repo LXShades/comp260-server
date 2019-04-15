@@ -70,7 +70,7 @@ class Room:
 
         # Display item-specific entry descriptions
         for item in self.items:
-            room_info += "* %s<br>" % item.entry_description
+            room_info += "* %s (<+command>%s<-command>)<br>" % (item.entry_description, "<-command>, <+command>".join(list(item.commands.keys())))
 
         # Display names of other players in this room
         for other_player in self.dungeon.players:

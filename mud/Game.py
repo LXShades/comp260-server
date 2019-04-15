@@ -51,6 +51,8 @@ class Game:
 
             time.sleep(0.1)
 
+        self.dungeon.destroy()
+
     """Creates the local client for testing"""
     def create_local_client(self):
         # Start the client thread
