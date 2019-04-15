@@ -1,8 +1,7 @@
 import queue
 import random
 import cgi  # for html-escape
-from Client import Client
-import Room
+from Item import Item
 from Command import Command
 from Database import Database
 
@@ -46,6 +45,7 @@ class Player:
             "say": Command("say", Player.cmd_say, "Say something to the current room", "say Hello, I'm a doofhead.", -1),
             "go": Command("go", Player.cmd_go, "<north, east, south, west> Go to another room", "go west", 1),
             "sql": Command("sql", Player.cmd_sql_test, "Do an SQL test", "sql drop tables; etc", -1),
+            "inventory": Command("inventory", Player.cmd_inventory, "Displays your inventory", "inventory", 0)
         }
 
         # Load player state from the database
@@ -57,29 +57,34 @@ class Player:
             starting_room = values[0][0]
             self.name = values[0][1]
         else:
+            # Give the player a name
+            self.name = Player.generate_name()
+
             # Add the new player to the database
             Database.player_db.execute("INSERT INTO players (account_name, character_name, last_room) VALUES (?, ?, ?)",
                                        (self.client.account_name, self.name, dungeon.entry_room))
-            # Give the player a name
-            self.name = Player.generate_name()
+
+            # Give them an inventory with a useful item
+            self.inventory = [Item("Rubberduck", "It's a rubber duck. If you squeak it, it will tell you your fortune.", {"squeak": ""})]
 
         # Broadcast entry message
         self.dungeon.broadcast("<i><font color='green'><+player>%s<-player> has entered the game!</font></i>" % self.name)
 
         # Output an initial message to the player
-        self.output("<+event>You awaken into this world as <+player>%s.<-player><-event>" % self.name)
+        self.output("<+event>You awaken into this world as <+player>%s.<-player><-event><br>" % self.name)
 
         # Spawn in the given room
         self.room = dungeon.rooms[starting_room]
-        self.output("<i>You enter <+room>%s<-room></i>" % self.room.title)
+
+        self.output("<+action>You enter <+room>%s<-room><-action>" % self.room.title)
         self.room.on_enter(self)
 
         self.output("<+info><i>Type <+command>help<-command> to view your list of commands.</i><-info>")
-        self.output("<+info><i>Type <+command>look<-command> to re-assess your surroundings.</i><-info>")
+        self.output("<+info><i>Type <+command>look<-command> to re-assess your surroundings.</i><-info><br>")
 
     """Destroys the player, saving progress"""
     def destroy(self):
-        # Save your data (todo: check EU compliance)
+        # Save your data
         Database.player_db.execute("""
             UPDATE players
             SET last_room = (?),
@@ -136,6 +141,20 @@ class Player:
                 else:
                     # Show example usage because player doesn't know what they're doing
                     self.output("Invalid input. Example usage: '%s'" % command.example_usage)
+                    return
+
+        # That didn't work. Try item commands
+        if len(parameters) > 1:
+            target_object_name = parameters[1].lower()
+            target_object = [x for x in self.room.items if x.name.lower() == target_object_name]
+
+            if target_object is not None and len(target_object) > 0:
+                if command_name in target_object[0].commands:
+                    self.output(target_object[0].commands[command_name])
+                    target_object[0].do_command(command_name, self)
+                    return
+                else:
+                    self.output("%s does not have the command '%s'" % (target_object[0].name, command_name))
                     return
 
         # Or the command didn't exist
@@ -205,10 +224,33 @@ class Player:
     Outputs the list of available commands
     """
     def cmd_help(self, parameters):
-        self.output("You can perform the following commands:")
+        # Display general commands
+        self.output("<+info>General commands:<-info><br>")
 
         for command_name, command in self.commands.items():
-            self.output("<b><+item>%s:<-item></b> <i>%s</i>" % (command_name, command.usage))
+            self.output("<+command>%s:<-command> <i>%s</i>" % (command_name, command.usage))
+
+        # Display item-specific commands and their usages
+        self.output("<br><+info>Item commands:<-info><br>")
+
+        item_commands = {}
+        for item in self.room.items:
+            for command in item.commands.keys():
+                if command not in item_commands:
+                    item_commands[command] = []
+                item_commands[command].append(item.name)
+
+        for command in item_commands:
+            self.output("<+command>%s:<-command> %s" % (command, "<-item>, <+item>".join(item_commands[command])))
+
+    """
+    Displays the inventory
+    """
+    def cmd_inventory(self, parameters):
+        self.output("You currently possess:<br><br>")
+
+        for item in self.inventory:
+            self.output("* <+item>%s<-item> (<+command>%s<-command>)" % (item.name, "<-command>, <+command>".join(item.commands)))
 
     def cmd_sql_test(self, parameters):
         string = " ".join(parameters)
@@ -234,6 +276,10 @@ class Player:
 
         # Close the database
         connection.close()
+
+    """Adds an item to the player's inventory and removes it from the room if applicable"""
+    def add_to_inventory(self, item):
+        self.inventory.append(item)
 
     """Generates a player name
     

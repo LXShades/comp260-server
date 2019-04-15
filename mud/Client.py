@@ -77,9 +77,21 @@ class Client:
                 self.process_login_input(input)
 
         if self.state == Client.STATE_INIT:
-            self.output_text("Welcome to the MUD!" +
-                                  "<br>* Type 'login' to log in to an existing account." +
-                                  "<br>* Type 'register' to begin creating an account.<br><br>")
+            self.output_text("""<i><font color='white'>
+                                In compliance with GDPR, in case the scary men in black come after me, I must inform you of the following:<br>
+                                <br>
+                                * This game will at no point will request any personal data from you. This is not a complete 
+                                commercial game, and as such, real emails and passwords should be avoided in logins and chats.<br>
+                                * Any and all data you provide may be stored on a remote server alongside all other related character and account data.
+                                This data, with the sole exclusion of your password, is not encrypted.<br>
+                                * Data will not be deliberately shared or sold to third-parties.<br>
+                                * Your data may, in special cases, be inspected by game administrators for testing, verification, or repairing purposes.<br>
+                                * Your activity may be logged. This includes anyone who tries to steal the parrot.<br>
+                                <br></i></font>
+                                Welcome to the MUD!<br>
+                                * Type <+command>login<-command> to log in to an existing account.<br>
+                                * Type <+command>register<-command> to begin creating an account.<br>
+                                <br>""")
 
             # Begin login state
             self.state = Client.STATE_AUTHENTICATION

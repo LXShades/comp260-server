@@ -37,12 +37,20 @@ class Item:
         command_name: Name of the command
         player: The player trying to use the command
     """
-    def do_command(self, command_name, player = None):
-        if hasattr(self, "on_%s" % command_name):
+    def do_command(self, command_name, player):
+        if hasattr(self, "cmd_%s" % command_name):
             # Print command message
-            getattr(self, "on_%s" % command_name)
+            getattr(self, "cmd_%s" % command_name)(player)
             return True
         return False
+
+    """Default: adds the item to the player's inventory"""
+    def cmd_take(self, player):
+        player.output("<+event>You take the item.<-event><br><br>")
+        player.add_to_inventory(self)
+
+    def cmd_read(self, player):
+        player.output("jflrekjkltjrkletj<br>")
 
     """Called when a player quits the game
     
