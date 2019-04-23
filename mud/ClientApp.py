@@ -360,6 +360,12 @@ class ClientWindow(QWidget):
         while not self.client.output_queue.empty():
             self.output(self.client.output_queue.get(False))
 
+        # Hack (don't wanna do this on every frame really but whutevs): Set echo mode
+        if self.client.state == ClientApp.STATE_AWAITING_PASSWORD:
+            self.input_box.setEchoMode(QLineEdit.Password)
+        else:
+            self.input_box.setEchoMode(QLineEdit.Normal)
+
     """Called when the return key is pressed, or the Enter button clicked"""
     def on_input_entered(self):
         if self.client.state != ClientApp.STATE_AWAITING_PASSWORD:

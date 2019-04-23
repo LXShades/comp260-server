@@ -21,6 +21,8 @@ Attributes:
 
 class Game:
     def __init__(self):
+        print("Starting server...")
+
         # Init vars
         Global.is_server = True  # Used for local client spawning
 

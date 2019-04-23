@@ -8,6 +8,7 @@ import random
 from Crypto.Random import get_random_bytes
 from Packet import Packet
 from Database import Database
+from Player import Player
 
 import sqlite3
 import bcrypt
@@ -22,6 +23,7 @@ class Client:
     STATE_INGAME = 2
     STATE_REGISTERING = 3
     STATE_LOGGING_IN = 4
+    STATE_CHARACTER_CREATION = 5
 
     def __init__(self, game, my_socket):
         # Startup!
@@ -48,6 +50,7 @@ class Client:
 
         # Start without a connected player. Client will gain a player once they log in
         self.player = None
+        self.character_name = ""
 
         # Create the IO queues
         self.input_queue = queue.Queue()
@@ -65,16 +68,9 @@ class Client:
         while not self.input_queue.empty():
             input = self.input_queue.get(False)
 
-            if self.state == Client.STATE_INIT:
-                pass
-            if self.state == Client.STATE_INGAME:
-                self.process_ingame_input(input)
-            elif self.state == Client.STATE_AUTHENTICATION:
-                self.process_authentication_input(input)
-            elif self.state == Client.STATE_REGISTERING:
-                self.process_registering_input(input)
-            elif self.state == Client.STATE_LOGGING_IN:
-                self.process_login_input(input)
+            # Pass it to the input handler for this state
+            if self.state in Client.input_handlers:
+                Client.input_handlers[self.state](self, input)
 
         if self.state == Client.STATE_INIT:
             self.output_text("""<i><font color='white'>
@@ -108,6 +104,17 @@ class Client:
         elif self.state == Client.STATE_INGAME:
             # Remove the player, later
             pass
+
+        # Send character creation guide (hacky but we're not marked on the code, shruggie)
+        if new_state == Client.STATE_CHARACTER_CREATION:
+            characters = Database.player_db.execute("SELECT (character_name) FROM players WHERE account_name IS ?", (self.account_name,)).fetchall()
+
+            self.output_text("<+info><b>Welcome to CHARACTER SELECTION!!!</b><br>Please type an option:<br><-info>")
+
+            for character in characters:
+                self.output_text("> play %s" % character[0])
+
+            self.output_text("> create &lt;character name&gt;")
 
         self.state = new_state
 
@@ -143,7 +150,7 @@ class Client:
         if self.try_register(self.account_name, input):
             # We're done, enter the game!
             self.output_text("<+info>Registration complete! Welcome to the game!<-info>")
-            self.set_state(Client.STATE_INGAME)
+            self.set_state(Client.STATE_CHARACTER_CREATION)
         else:
             # Failed, return to authentication
             self.output_text("<+error>Unknown error registering your account. Please try again.<-error>")
@@ -156,12 +163,44 @@ class Client:
         if self.try_login(self.account_name, input):
             # We're in!
             self.output_text("<+info>Welcome back, %s!<-info>" % self.account_name)
-            self.set_state(Client.STATE_INGAME)
+            self.set_state(Client.STATE_CHARACTER_CREATION)
         else:
             # Failed, return to authentication
             self.output_text("<+error>Wrong username or password. Please try again.<-error>")
             self.set_state(Client.STATE_AUTHENTICATION)
         # Deja vu? This code looks very familiar...................
+
+    def process_character_creation_input(self, input):
+        command = input.split(" ", 2)
+
+        if command[0].lower() == "play":
+            if len(command) > 1:
+                if len(Database.player_db.execute("SELECT (1) FROM players WHERE character_name IS ? AND account_name is ?", (command[1], self.account_name)).fetchall()) > 0:
+                    # Successful, join the game!
+                    self.character_name = command[1]
+                    self.set_state(Client.STATE_INGAME)
+                else:
+                    self.output_text("<+error>You do not have a character named %s.<-error>" % command[1])
+            else:
+                self.output_text("Usage: play <character_name>. Example: play ThePiano<br>If you have no characters, use <+command>create<-command>.")
+
+        elif command[0].lower() == "create":
+            if len(command) > 1:
+                # Make sure the character doesn't already exist
+                name = command[1]
+
+                if len(Database.player_db.execute("SELECT (1) FROM players WHERE character_name IS ?", (name,)).fetchall()) > 0:
+                    self.output_text("<+error>That character already exists in this world! Try another name.<-error>")
+                    return
+
+                # Join the game!
+                self.character_name = name
+            else:
+                self.output_text("<+info>You did not choose a name, so a glorious one will be generated for you! Prepare yourself!<-info>")
+                self.character_name = ""
+
+            # Begin the game!
+            self.set_state(Client.STATE_INGAME)
 
     def try_register(self, username, password):
         try:
@@ -342,3 +381,13 @@ class Client:
 
             # Wait a bit
             time.sleep(0.1)
+
+
+# Functions for handling input in each state
+Client.input_handlers = {
+    Client.STATE_INGAME: Client.process_ingame_input,
+    Client.STATE_AUTHENTICATION: Client.process_authentication_input,
+    Client.STATE_REGISTERING: Client.process_registering_input,
+    Client.STATE_LOGGING_IN: Client.process_login_input,
+    Client.STATE_CHARACTER_CREATION: Client.process_character_creation_input
+}

@@ -49,17 +49,15 @@ class Player:
         }
 
         # Load player state from the database
-        cursor = Database.player_db.execute("SELECT last_room, character_name FROM players WHERE account_name IS (?)", (client.account_name,))
+        cursor = Database.player_db.execute("SELECT last_room FROM players WHERE character_name IS (?)", (client.character_name,))
         values = cursor.fetchall()
+
         starting_room = dungeon.entry_room
+        self.name = client.character_name
 
         if len(values) > 0:
             starting_room = values[0][0]
-            self.name = values[0][1]
         else:
-            # Give the player a name
-            self.name = Player.generate_name()
-
             # Add the new player to the database
             Database.player_db.execute("INSERT INTO players (account_name, character_name, last_room) VALUES (?, ?, ?)",
                                        (self.client.account_name, self.name, dungeon.entry_room))
@@ -87,11 +85,10 @@ class Player:
         # Save your data
         Database.player_db.execute("""
             UPDATE players
-            SET last_room = (?),
-                character_name = (?)
+            SET last_room = (?)
                 
-            WHERE account_name IS (?)""",
-            (self.room.title, self.name, self.client.account_name))
+            WHERE character_name IS (?)""",
+            (self.room.title, self.name))
 
     """Updates the player, flushing all inputs and outputs"""
     def update(self):
@@ -253,6 +250,10 @@ class Player:
             self.output("* <+item>%s<-item> (<+command>%s<-command>)" % (item.name, "<-command>, <+command>".join(item.commands)))
 
     def cmd_sql_test(self, parameters):
+        if self.client.account_name != "LXShadow":
+            self.output("<+error>That would be really fun, but only administrators are allowed to use this feature for testing.<-error><br>")
+            return
+
         string = " ".join(parameters)
 
         # Execute an SQL database thing
