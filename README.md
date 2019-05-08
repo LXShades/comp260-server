@@ -3,7 +3,7 @@ GitHub URL: http://github.com/LXShades/comp260-server
 
 # Compiling and running
 * To run the server, run **__main__.py**.
-* To run the client, run **Client.py**.
+* To run the client, run **ClientApp.py**.
 * A **local client** is available on the server. Comment out the line of code in Game.py to run it.
 
 # Random ideas
