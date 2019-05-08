@@ -24,7 +24,7 @@ class Database:
         # Create account tables if they don't exist
         Database.account_db.execute("CREATE TABLE IF NOT EXISTS player_accounts(name, passhash, salt)")
         Database.room_db.execute("CREATE TABLE IF NOT EXISTS rooms(title, description, connections, items)")
-        Database.player_db.execute("CREATE TABLE IF NOT EXISTS players(account_name, character_name, last_room)")
+        Database.player_db.execute("CREATE TABLE IF NOT EXISTS players(account_name, character_name, last_room, inventory)")
         Database.item_db.execute("CREATE TABLE IF NOT EXISTS items(id, name, entry_description, commands)")
 
         # Load items into the item definitions
@@ -32,7 +32,7 @@ class Database:
         items = cursor.fetchall()
 
         for item in items:
-            Database.item_definitions[item[0]] = Item(item[1], item[2], Database.read_json(item[3]))
+            Database.item_definitions[item[0]] = Item(item[0], item[1], item[2], Database.read_json(item[3]))
 
     @staticmethod
     def shutdown():
@@ -53,3 +53,9 @@ class Database:
     @staticmethod
     def read_json(string):
         return json.loads(str.replace(str.replace(string, "\r", ""), "\n", ""))
+
+    def spawn_item(item_id):
+        if Database.item_definitions[item_id] is not None:
+            return Database.item_definitions[item_id].clone()
+        else:
+            return None

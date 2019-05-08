@@ -8,6 +8,7 @@ from Database import Database
 import queue
 import json
 import sqlite3
+import datetime
 
 """A dungeon containing players, and a map of hazardous precarious rooms or 'zones' to survive.
 
@@ -25,19 +26,22 @@ class Dungeon:
         cursor = Database.room_db.execute("SELECT * FROM rooms")
         room_list = cursor.fetchall()
 
+        self.last_backup_time = 0
         self.rooms = {}
 
         for index, room in enumerate(room_list):
             try:
                 # Add the new room
-                self.rooms[room[0]] = Room(room[0], room[1], Database.read_json(room[2]))
+                new_room = Room(room[0], room[1], Database.read_json(room[2]))
 
-                # Load the items
+                # Load the items into the room
                 if room[3] is not None:
                     items = Database.read_json(room[3])
                     for item in items:
                         if Database.item_definitions[item] is not None:
-                            self.rooms[room[0]].items.append(Database.item_definitions[item])
+                            new_room.add_item(Database.item_definitions[item].clone())
+
+                self.rooms[room[0]] = new_room
 
             except Exception as err:
                 print("Warning: Exception occurred while processing room at index %s. Please verify the data." % str(index))
@@ -100,11 +104,30 @@ class Dungeon:
             else:
                 client_id += 1
 
-    """Destroys the dungeon and saves all players"""
+        # Backup the dungeon every so often
+        if datetime.datetime.now().minute != self.last_backup_time:
+            print("Backing up dungeon...")
+            self.last_backup_time = datetime.datetime.now().minute
+            self.save()
+
+    """Destroys the dungeon and saves everything. In that order."""
     def destroy(self):
+        self.save()
+
         for client in self.clients:
             if client.player is not None:
                 client.player.destroy()
+
+    """Saves everything in the dungeon"""
+    def save(self):
+        # Save clients
+        for client in self.clients:
+            if client.player is not None:
+                client.player.save()
+
+        # Save rooms
+        for room in self.rooms:
+            self.rooms[room].save()
 
     """Adds a player to the dungeon
     

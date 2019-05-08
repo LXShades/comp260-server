@@ -1,4 +1,8 @@
 from Player import Player
+from Database import Database
+
+import json
+
 """
 A room is an area of a dungeon connected by possible rooms to the north, east, south or west
 
@@ -12,12 +16,17 @@ Attributes:
 
 
 class Room:
-    def __init__(self, title, description, connections, items=[]):
+    def __init__(self, title, description, connections, items=None):
         self.title = title
         self.description = description
         self.connections = connections
         self.items = items
         self.dungeon = None
+
+        if items is None:
+            # Create a new list for items.
+            # BUG FIXED: items was originally a default parameter, items=[], but this was being shared across all rooms!
+            self.items = []
 
     """Called whenever a player enters the room
     
@@ -91,3 +100,26 @@ class Room:
     """Called during game update. Overridable"""
     def update(self):
         pass
+
+    def save(self):
+        # Save the item list
+        Database.room_db.execute("""
+            UPDATE rooms
+            SET items = (?)
+
+            WHERE title IS (?)""",
+                (json.dumps([x.id for x in self.items]), self.title))
+        Database.player_db.commit()
+
+    """Adds an item to the room"""
+    def add_item(self, item):
+        if item.player is not None:
+            item.player.remove_from_inventory(item)
+
+        self.items.append(item)
+        item.room = self
+
+    """Removes an item from the room"""
+    def remove_item(self, item):
+        self.items.remove(item)
+        item.room = None

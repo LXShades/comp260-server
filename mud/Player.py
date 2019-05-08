@@ -7,6 +7,7 @@ from Database import Database
 
 # TEMP
 import sqlite3
+import json
 
 """A player in the game!
 
@@ -37,6 +38,9 @@ class Player:
 
         self.input_queue = queue.Queue()
 
+        # Initialise player variables
+        self.inventory = []
+
         # Initialise player commands
         self.commands = {
             "help": Command("help", Player.cmd_help, "Get a list of all usable commands", "help", 0),
@@ -49,21 +53,30 @@ class Player:
         }
 
         # Load player state from the database
-        cursor = Database.player_db.execute("SELECT last_room FROM players WHERE character_name IS (?)", (client.character_name,))
+        cursor = Database.player_db.execute("SELECT last_room, inventory FROM players WHERE character_name IS (?)", (client.character_name,))
         values = cursor.fetchall()
 
         starting_room = dungeon.entry_room
         self.name = client.character_name
 
         if len(values) > 0:
+            # Load the player
             starting_room = values[0][0]
+            inventory_list = json.loads(values[0][1])
+
+            for item in inventory_list:
+                new_item = Database.spawn_item(item[0])
+
+                if new_item is not None:
+                    new_item.custom_data = item[1]
+                    self.add_to_inventory(new_item)
         else:
             # Add the new player to the database
-            Database.player_db.execute("INSERT INTO players (account_name, character_name, last_room) VALUES (?, ?, ?)",
-                                       (self.client.account_name, self.name, dungeon.entry_room))
+            Database.player_db.execute("INSERT INTO players (account_name, character_name, last_room, inventory) VALUES (?, ?, ?, ?)",
+                                       (self.client.account_name, self.name, dungeon.entry_room, "{}"))
 
             # Give them an inventory with a useful item
-            self.inventory = [Item("Rubberduck", "It's a rubber duck. If you squeak it, it will tell you your fortune.", {"squeak": ""})]
+            #self.inventory = [Item("rubberduck", "Rubberduck", "It's a rubber duck. If you squeak it, it will tell you your fortune.", {"squeak": ""})]
 
         # Broadcast entry message
         self.dungeon.broadcast("<i><font color='green'><+player>%s<-player> has entered the game!</font></i>" % self.name)
@@ -82,13 +95,7 @@ class Player:
 
     """Destroys the player, saving progress"""
     def destroy(self):
-        # Save your data
-        Database.player_db.execute("""
-            UPDATE players
-            SET last_room = (?)
-                
-            WHERE character_name IS (?)""",
-            (self.room.title, self.name))
+        self.save()
 
     """Updates the player, flushing all inputs and outputs"""
     def update(self):
@@ -145,16 +152,34 @@ class Player:
             target_object_name = parameters[1].lower()
             target_object = [x for x in self.room.items if x.name.lower() == target_object_name]
 
-            if target_object is not None and len(target_object) > 0:
+            if len(target_object) == 0:
+                target_object = [x for x in self.inventory if x.name.lower() == target_object_name]
+
+            if len(target_object) > 0:
                 if command_name in target_object[0].commands:
                     self.output(target_object[0].commands[command_name])
-                    target_object[0].do_command(command_name, self)
+                    target_object[0].do_command(command_name, self, parameters[2:])
                     return
                 else:
                     self.output("%s does not have the command '%s'" % (target_object[0].name, command_name))
                     return
+        elif len(parameters) == 1:
+            # See which item(s) has this command
+            compatible_items = [item for item in self.room.items if command_name in item.commands]
+            compatible_items.extend([item for item in self.inventory if command_name in item.commands])
 
-        # Or the command didn't exist
+            if len(compatible_items) > 0:
+                # Display all items which can use this
+                info_message = "Usages: %s [%s" % (command_name, compatible_items[0].name.lower())
+
+                for i in range(1, len(compatible_items)):
+                    info_message += ", %s" % (compatible_items[i].name.lower())
+                info_message += "]"
+
+                self.output(info_message)
+                return
+
+        # If all fails, the command wasn't processed
         self.output("Unknown command: %s" % command_name)
 
     """Displays the room entry message, updated with regard to items, players, etc"""
@@ -244,10 +269,15 @@ class Player:
     Displays the inventory
     """
     def cmd_inventory(self, parameters):
-        self.output("You currently possess:<br><br>")
+        if len(self.inventory) > 0:
+            # Display inventory
+            self.output("You currently possess:<br><br>")
 
-        for item in self.inventory:
-            self.output("* <+item>%s<-item> (<+command>%s<-command>)" % (item.name, "<-command>, <+command>".join(item.commands)))
+            for item in self.inventory:
+                self.output("* <+item>%s<-item> (<+command>%s<-command>)" % (item.name, "<-command>, <+command>".join(item.commands)))
+        else:
+            # Display 'you have nothing'
+            self.output("You currently possess.....<br><br>Nothing. ¯\_(ツ)_/¯<br>")
 
     def cmd_sql_test(self, parameters):
         if self.client.account_name != "LXShadow":
@@ -280,7 +310,17 @@ class Player:
 
     """Adds an item to the player's inventory and removes it from the room if applicable"""
     def add_to_inventory(self, item):
+        if item.room is not None:
+            item.room.remove_item(item)
+
+        item.player = self
         self.inventory.append(item)
+
+    """Removes the item from the player's inventory and drops it in the room"""
+    def remove_from_inventory(self, item):
+        item.player = None
+        item.room = self.room
+        self.inventory.remove(item)
 
     """Generates a player name
     
@@ -294,11 +334,22 @@ class Player:
         return random.choice(first) + random.choice(second) + " " + random.choice(third) + random.choice(fourth)
 
     """Saves the player's state to the database"""
-    def save_state(self):
-        # Todo
-        pass
+    def save(self):
+        # Convert items into a dictionary
+        item_list = []
+        for item in self.inventory:
+            item_list.append((item.id, item.custom_data))
+
+        Database.player_db.execute("""
+            UPDATE players
+            SET last_room = (?),
+            inventory = (?)
+                
+            WHERE character_name IS (?)""",
+            (self.room.title, json.dumps(item_list), self.name))
+        Database.player_db.commit()
 
     """Loads the player's state from the database"""
-    def load_state(self):
+    def load(self):
         # Todo
         pass
