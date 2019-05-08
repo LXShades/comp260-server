@@ -319,7 +319,7 @@ class Player:
     """Removes the item from the player's inventory and drops it in the room"""
     def remove_from_inventory(self, item):
         item.player = None
-        item.room = self.room
+        self.room.add_item(item)
         self.inventory.remove(item)
 
     """Generates a player name

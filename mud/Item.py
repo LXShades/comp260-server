@@ -64,17 +64,32 @@ class Item:
     def cmd_take(self, player, parameters):
         if self.player is None:
             player.output("<+event>You take the <+item>%s<-item>.<-event><br><br>" % self.name)
+            player.room.broadcast("<+event>%s picks up a <+item>%s<-item><br>" % (player.name, self.name), [player])
             player.add_to_inventory(self)
         else:
             player.output("<+error>You already have this.<-error>")
 
     def cmd_give(self, player, parameters):
-        #target_player = [p in self.player.]
-        # forcibly give an item to the player
+        if len(parameters) > 0:
+            target_player = [p for p in player.dungeon.players if p.room == player.room and p.name.lower() == parameters[0].lower()]
+
+            if len(target_player) > 0:
+                player.output("<event>You forcibly give the <+item>%s<-item> to <+player>%s<-player><-event><br>" % (self.name, target_player[0].name))
+                target_player[0].output("<event><+player>%s<-player> forcibly hands you a <+item>%s<-item><-event><br>" % (player.name, self.name))
+
+                if self.player is not None:
+                    self.player.remove_from_inventory(self)
+                elif self.room is not None:
+                    self.room.remove_item(self)
+
+                target_player[0].add_to_inventory(self)
+        else:
+            player.output("<+info>Usage: give [item] [player]<-info><br>")
 
     def cmd_drop(self, player, parameters):
         if self.room is None and self.player is player:
             player.output("<+event>You aggressively drop the <+item>%s<-item> onto the floor.<-event><br><br>" % self.name)
+            player.room.broadcast("<+event><+player>%s<-player> drops a <+item>%s<-item> onto the floor.<br>" % (player.name, self.name), [player])
 
             # Drop the item into the room
             player.remove_from_inventory(self)
