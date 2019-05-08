@@ -96,7 +96,21 @@ class Item:
             player.room.add_item(self)
 
     def cmd_read(self, player, parameters):
-        player.output("jflrekjkltjrkletj<br>")
+        pass
+
+    def cmd_whisper(self, player, parameters):
+        if len(parameters) > 0:
+            text = " ".join(parameters)
+            player.output("<+event>You whisper to the <+item>%s<-item>...it will remember that.<-event><br>" % (self.name))
+            self.custom_data["message"] = text
+        else:
+            player.output("<+info>Usage: whisper [item] [message]<-info><br>")
+
+    def cmd_squeak(self, player, parameters):
+        if "message" in self.custom_data:
+            player.output("<+event>You squeak the <+item>%s<-item>. It whispers into your ears...<br><br>%s" % (self.name, self.custom_data["message"]))
+        else:
+            player.output("<+event>You squeak the <+item>%s<-item>. It makes a light, wheezing sound<-event><br>" % self.name)
 
     """Called when a player quits the game
     
