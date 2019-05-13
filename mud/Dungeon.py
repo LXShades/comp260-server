@@ -38,8 +38,10 @@ class Dungeon:
                 if room[3] is not None:
                     items = Database.read_json(room[3])
                     for item in items:
-                        if Database.item_definitions[item] is not None:
-                            new_room.add_item(Database.item_definitions[item].clone())
+                        if Database.item_definitions[item[0]] is not None:
+                            new_item = Database.item_definitions[item[0]].clone()
+                            new_item.custom_data = item[1]
+                            new_room.add_item(new_item)
 
                 self.rooms[room[0]] = new_room
 

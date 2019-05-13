@@ -93,7 +93,6 @@ class Item:
 
             # Drop the item into the room
             player.remove_from_inventory(self)
-            player.room.add_item(self)
 
     def cmd_read(self, player, parameters):
         pass

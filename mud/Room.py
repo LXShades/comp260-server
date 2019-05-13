@@ -108,7 +108,7 @@ class Room:
             SET items = (?)
 
             WHERE title IS (?)""",
-                (json.dumps([x.id for x in self.items]), self.title))
+                (json.dumps([(x.id, x.custom_data) for x in self.items]), self.title))
         Database.player_db.commit()
 
     """Adds an item to the room"""
